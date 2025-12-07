@@ -73,7 +73,7 @@ struct VoiceMessage: Codable {
     }
 
     struct TurnDetection: Codable {
-        let type: String // "server_vad"
+        let type: String? // "server_vad"
     }
 
     struct ConversationItem: Codable {

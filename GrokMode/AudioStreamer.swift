@@ -46,9 +46,12 @@ class AudioStreamer: NSObject {
         // Use the XAI format for consistency
         audioFormat = xaiFormat
 
+        
+        //
         // Set up audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
+            try audioSession.setPrefersEchoCancelledInput(true)
             try audioSession.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .duckOthers])
             try audioSession.setActive(true)
             try audioSession.setPreferredSampleRate(xaiSampleRate)

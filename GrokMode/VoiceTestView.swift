@@ -465,8 +465,7 @@ class VoiceTestViewModel: NSObject, ObservableObject {
     private func setupAudioSessionForPlayback() {
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            // Reverting to .spokenAudio as it was known to work, though .voiceChat is usually better for VoIP
-            try audioSession.setCategory(.playAndRecord, mode: .spokenAudio, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
             try audioSession.setPreferredSampleRate(24000)
             try audioSession.setActive(true)
             print("✅ Audio session configured for speaking")
