@@ -149,22 +149,9 @@ struct MangaScript: Codable {
 /// Represents the audio performance of a manga script
 struct AudioPerformance {
     let script: MangaScript
-    let audioData: Data
-    let format: AudioFormat
+    let audioFileURL: URL  // Simplified: just point to the WAV file
     let duration: TimeInterval
     let segmentTimings: [SegmentTiming]
-
-    struct AudioFormat {
-        let sampleRate: Double
-        let channels: Int
-        let bitDepth: Int
-
-        static let standard = AudioFormat(
-            sampleRate: 24000,
-            channels: 1,
-            bitDepth: 16
-        )
-    }
 
     struct SegmentTiming {
         let segmentId: UUID

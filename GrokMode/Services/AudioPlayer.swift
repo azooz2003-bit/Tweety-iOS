@@ -74,12 +74,11 @@ class AudioPlayer: NSObject {
         playbackState = .loading
 
         do {
-            // Create temporary file for audio data
-            let tempURL = try createTemporaryAudioFile(from: performance.audioData, format: performance.format)
-            audioFileURL = tempURL
+            // Directly use the WAV file from the performance
+            audioFileURL = performance.audioFileURL
 
-            // Create AVAudioPlayer
-            audioPlayer = try AVAudioPlayer(contentsOf: tempURL)
+            // Create AVAudioPlayer - AVFoundation handles everything!
+            audioPlayer = try AVAudioPlayer(contentsOf: performance.audioFileURL)
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
 
@@ -168,56 +167,6 @@ class AudioPlayer: NSObject {
             print("❌ Failed to setup audio session: \(error)")
             playbackState = .failed(AudioPlayerError.audioSessionSetupFailed)
         }
-    }
-
-    private func createTemporaryAudioFile(from data: Data, format: AudioPerformance.AudioFormat) throws -> URL {
-        // Create temporary directory
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "manga_performance_\(UUID().uuidString).wav"
-        let fileURL = tempDir.appendingPathComponent(fileName)
-
-        // Create WAV file
-        let wavData = try createWAVData(from: data, format: format)
-
-        try wavData.write(to: fileURL)
-
-        print("📁 Created temporary audio file: \(fileURL.lastPathComponent)")
-
-        return fileURL
-    }
-
-    private func createWAVData(from pcmData: Data, format: AudioPerformance.AudioFormat) throws -> Data {
-        var wavData = Data()
-
-        // WAV Header
-        let sampleRate = UInt32(format.sampleRate)
-        let channels = UInt16(format.channels)
-        let bitsPerSample = UInt16(format.bitDepth)
-        let byteRate = sampleRate * UInt32(channels) * UInt32(bitsPerSample / 8)
-        let blockAlign = channels * (bitsPerSample / 8)
-        let dataSize = UInt32(pcmData.count)
-
-        // RIFF header
-        wavData.append("RIFF".data(using: .ascii)!)
-        wavData.append(withUnsafeBytes(of: (36 + dataSize).littleEndian) { Data($0) })
-        wavData.append("WAVE".data(using: .ascii)!)
-
-        // fmt chunk
-        wavData.append("fmt ".data(using: .ascii)!)
-        wavData.append(withUnsafeBytes(of: UInt32(16).littleEndian) { Data($0) }) // Chunk size
-        wavData.append(withUnsafeBytes(of: UInt16(1).littleEndian) { Data($0) })  // Audio format (PCM)
-        wavData.append(withUnsafeBytes(of: channels.littleEndian) { Data($0) })
-        wavData.append(withUnsafeBytes(of: sampleRate.littleEndian) { Data($0) })
-        wavData.append(withUnsafeBytes(of: byteRate.littleEndian) { Data($0) })
-        wavData.append(withUnsafeBytes(of: blockAlign.littleEndian) { Data($0) })
-        wavData.append(withUnsafeBytes(of: bitsPerSample.littleEndian) { Data($0) })
-
-        // data chunk
-        wavData.append("data".data(using: .ascii)!)
-        wavData.append(withUnsafeBytes(of: dataSize.littleEndian) { Data($0) })
-        wavData.append(pcmData)
-
-        return wavData
     }
 
     private func cleanupTemporaryFiles() {

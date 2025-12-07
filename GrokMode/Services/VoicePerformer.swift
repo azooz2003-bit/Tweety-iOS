@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AVFoundation
 
 // MARK: - Errors
 
@@ -82,7 +83,7 @@ class VoicePerformer {
     }
 
     private func generatePerformance(for script: MangaScript) async throws -> AudioPerformance {
-        var audioChunks: [Data] = []
+        var audioFiles: [URL] = []
         var segmentTimings: [AudioPerformance.SegmentTiming] = []
         var currentTime: TimeInterval = 0.0
 
@@ -95,40 +96,40 @@ class VoicePerformer {
 
             // Add pause before segment
             if let pauseBefore = segment.timing?.pauseBefore, pauseBefore > 0 {
-                let silenceData = generateSilence(duration: pauseBefore)
-                audioChunks.append(silenceData)
+                let silenceFile = try createSilenceFile(duration: pauseBefore)
+                audioFiles.append(silenceFile)
                 currentTime += pauseBefore
             }
 
             // Generate audio for this segment
             let startTime = currentTime
-            let segmentAudio: Data
+            let segmentAudioURL: URL
 
             switch segment.type {
             case .dialogue, .thought:
                 // Use TTS for dialogue and thoughts
                 let voice = selectVoice(for: segment.character, emotion: segment.emotion)
                 let text = formatSegmentForTTS(segment)
-                segmentAudio = try await generateTTS(text: text, voice: voice)
+                segmentAudioURL = try await generateTTS(text: text, voice: voice)
 
             case .narration:
                 // Use calm, neutral voice for narration
                 let text = segment.content
-                segmentAudio = try await generateTTS(text: text, voice: .ara)
+                segmentAudioURL = try await generateTTS(text: text, voice: .ara)
 
             case .soundEffect:
                 // Generate short tone for sound effects (or skip)
                 // For now, we'll use a short pause
-                segmentAudio = generateSilence(duration: 0.3)
+                segmentAudioURL = try createSilenceFile(duration: 0.3)
 
             case .action:
                 // Use subtle narration for actions
                 let text = segment.content
-                segmentAudio = try await generateTTS(text: text, voice: .sal)
+                segmentAudioURL = try await generateTTS(text: text, voice: .sal)
             }
 
-            let duration = calculateDuration(for: segmentAudio)
-            audioChunks.append(segmentAudio)
+            let duration = try getAudioDuration(from: segmentAudioURL)
+            audioFiles.append(segmentAudioURL)
             currentTime += duration
 
             segmentTimings.append(AudioPerformance.SegmentTiming(
@@ -140,15 +141,14 @@ class VoicePerformer {
             print("    ✓ Generated \(duration)s of audio")
         }
 
-        // Combine all audio chunks
-        let combinedAudio = audioChunks.reduce(Data(), +)
+        // Concatenate all audio files using AVFoundation
+        let combinedAudioURL = try await concatenateAudioFiles(audioFiles)
 
-        print("✅ Voice performance generated: \(currentTime)s, \(combinedAudio.count) bytes")
+        print("✅ Voice performance generated: \(currentTime)s")
 
         return AudioPerformance(
             script: script,
-            audioData: combinedAudio,
-            format: .standard,
+            audioFileURL: combinedAudioURL,
             duration: currentTime,
             segmentTimings: segmentTimings
         )
@@ -156,7 +156,7 @@ class VoicePerformer {
 
     // MARK: - TTS Generation
 
-    private func generateTTS(text: String, voice: Voice, retryCount: Int = 0) async throws -> Data {
+    private func generateTTS(text: String, voice: Voice, retryCount: Int = 0) async throws -> URL {
         var request = URLRequest(url: ttsEndpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(APIConfig.xAiApiKey)", forHTTPHeaderField: "Authorization")
@@ -166,7 +166,7 @@ class VoicePerformer {
         let requestBody: [String: Any] = [
             "input": text,
             "voice": voice.rawValue,
-            "response_format": "wav"  // WAV format for easy concatenation
+            "response_format": "wav"  // WAV format - let AVFoundation handle it natively
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
@@ -196,16 +196,13 @@ class VoicePerformer {
                 throw VoicePerformerError.audioProcessingFailed
             }
 
-            // Extract PCM data from WAV file (skip 44-byte header)
-            // WAV files from API have standard headers, we only want the raw audio data
-            let pcmData: Data
-            if data.count > 44 {
-                pcmData = data.subdata(in: 44..<data.count)
-            } else {
-                pcmData = data
-            }
+            // Save WAV file directly - no processing needed!
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("tts_\(UUID().uuidString).wav")
+            try data.write(to: tempURL)
 
-            return pcmData
+            print("    📁 Saved TTS audio: \(tempURL.lastPathComponent)")
+            return tempURL
 
         } catch is CancellationError {
             throw VoicePerformerError.cancelled
@@ -260,16 +257,109 @@ class VoicePerformer {
 
     // MARK: - Helper Functions
 
-    private func generateSilence(duration: TimeInterval) -> Data {
-        let sampleRate = 24000
-        let samples = Int(duration * Double(sampleRate))
-        return Data(repeating: 0, count: samples * 2) // 16-bit = 2 bytes per sample
+    private func createSilenceFile(duration: TimeInterval) throws -> URL {
+        // Create a silent audio file using AVFoundation
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("silence_\(UUID().uuidString).wav")
+
+        let sampleRate = 24000.0
+        let channelCount: AVAudioChannelCount = 1
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: channelCount,
+            interleaved: false
+        )!
+
+        let frameCount = AVAudioFrameCount(duration * sampleRate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            throw VoicePerformerError.audioProcessingFailed
+        }
+        buffer.frameLength = frameCount
+
+        // Buffer is already zeroed (silence)
+
+        let audioFile = try AVAudioFile(
+            forWriting: tempURL,
+            settings: format.settings,
+            commonFormat: .pcmFormatInt16,
+            interleaved: false
+        )
+        try audioFile.write(from: buffer)
+
+        return tempURL
     }
 
-    private func calculateDuration(for audioData: Data) -> TimeInterval {
-        let sampleRate = 24000.0
-        let bytesPerSample = 2 // 16-bit
-        let sampleCount = audioData.count / bytesPerSample
-        return Double(sampleCount) / sampleRate
+    private func getAudioDuration(from url: URL) throws -> TimeInterval {
+        let audioFile = try AVAudioFile(forReading: url)
+        let duration = Double(audioFile.length) / audioFile.fileFormat.sampleRate
+        return duration
+    }
+
+    private func concatenateAudioFiles(_ urls: [URL]) async throws -> URL {
+        guard !urls.isEmpty else {
+            throw VoicePerformerError.audioProcessingFailed
+        }
+
+        // If only one file, just return it
+        if urls.count == 1 {
+            return urls[0]
+        }
+
+        // Create composition
+        let composition = AVMutableComposition()
+        guard let audioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw VoicePerformerError.audioProcessingFailed
+        }
+
+        var currentTime = CMTime.zero
+
+        for url in urls {
+            let asset = AVURLAsset(url: url)
+
+            // Use modern async API
+            guard let assetTrack = try await asset.loadTracks(withMediaType: .audio).first else {
+                continue
+            }
+
+            let duration = try await asset.load(.duration)
+            let timeRange = CMTimeRange(start: .zero, duration: duration)
+
+            try audioTrack.insertTimeRange(timeRange, of: assetTrack, at: currentTime)
+            currentTime = CMTimeAdd(currentTime, duration)
+        }
+
+        // Export the composition to a file
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("combined_\(UUID().uuidString).wav")
+
+        guard let exportSession = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetPassthrough
+        ) else {
+            throw VoicePerformerError.audioProcessingFailed
+        }
+
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .wav
+
+        // Use continuation for the export callback
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            exportSession.exportAsynchronously {
+                if exportSession.status == .completed {
+                    continuation.resume()
+                } else if let error = exportSession.error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(throwing: VoicePerformerError.audioProcessingFailed)
+                }
+            }
+        }
+
+        print("    ✓ Concatenated \(urls.count) audio files")
+        return outputURL
     }
 }
