@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "BillyBob.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -12,6 +13,7 @@
           "value" : "dark"
         }
       ],
+      "filename" : "BillyBob 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -23,6 +25,7 @@
           "value" : "tinted"
         }
       ],
+      "filename" : "BillyBob 2.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
