@@ -293,6 +293,8 @@
 /* Begin XCBuildConfiguration section */
 		A34575982EE5109800E6576A /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = A345757B2EE5109700E6576A /* GrokMode */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -357,6 +359,8 @@
 		};
 		A34575992EE5109800E6576A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = A345757B2EE5109700E6576A /* GrokMode */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
