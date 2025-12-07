@@ -253,69 +253,92 @@ struct ToolConfirmationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Header with icon
-            VStack(spacing: 12) {
+        VStack(spacing: 20) {
+            // Header
+            HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 50))
+                    .font(.system(size: 24))
                     .foregroundStyle(.blue.gradient)
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.1))
+                    .clipShape(Circle())
 
-                Text("Preview Action")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Preview Action")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    
+                    Text("Grok needs your confirmation")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
             }
-            .padding(.top, 20)
+            .padding(.top, 4)
 
-            // Tool details with glass effect
-            VStack(alignment: .leading, spacing: 12) {
+            Divider()
+                .background(.white.opacity(0.2))
+
+            // Tool Details
+            VStack(alignment: .leading, spacing: 8) {
                 Text(toolCall.previewTitle)
-                    .font(.headline)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.primary)
 
                 Text(toolCall.previewContent)
                     .font(.body)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .glassEffect(.regular)
+            .padding(16)
+            .background(.black.opacity(0.3))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.white.opacity(0.1), lineWidth: 1)
+            )
 
             Spacer()
 
-            // Action buttons
-            VStack(spacing: 12) {
-                Button {
-                    onApprove()
-                    dismiss()
-                } label: {
-                    Text("Approve")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(.blue)
-
+            // Action Buttons
+            HStack(spacing: 16) {
                 Button {
                     onCancel()
                     dismiss()
                 } label: {
                     Text("Cancel")
                         .font(.headline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.white.opacity(0.8))
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
                 }
-                .buttonStyle(.glass)
+                .background(.black.opacity(0.4))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(.white.opacity(0.1), lineWidth: 1)
+                )
+
+                Button {
+                    onApprove()
+                    dismiss()
+                } label: {
+                    Text("Approve")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                }
+                .background(.blue)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
             }
-            .padding(.bottom, 20)
         }
-        .padding(.horizontal, 24)
-        .presentationBackground {
-            Color.clear
-                .background(.ultraThinMaterial)
-        }
+        .padding(24)
+        // Removed custom background and presentation modifications
     }
 }
 
