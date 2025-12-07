@@ -12,7 +12,7 @@ struct XToolIntegration {
     
     // Tools allowed for the CEO Demo scenario
     static var demoTools: [XTool] {
-        XTool.supportedTools
+        XTool.allCases
     }
 
     static func getToolDefinitions() -> [VoiceMessage.ToolDefinition] {

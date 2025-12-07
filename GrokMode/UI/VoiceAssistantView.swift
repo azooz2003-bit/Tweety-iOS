@@ -322,3 +322,8 @@ struct ToolConfirmationSheet: View {
 #Preview {
     VoiceAssistantView()
 }
+
+#Preview("Sheet") {
+    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff"), onApprove: {}, onCancel: {})
+}
+

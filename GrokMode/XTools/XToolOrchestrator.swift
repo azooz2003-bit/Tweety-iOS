@@ -12,13 +12,138 @@ enum HTTPMethod: String {
 }
 
 class XToolOrchestrator {
-    private var bearerToken: String {
-        if let userToken = Config.currentUserToken {
-            return userToken
-        }
-        return Config.xApiKey
-    }
     private var baseURL: String { Config.baseXURL }
+
+    // MARK: - Authentication
+
+    /// Determines which bearer token to use based on the endpoint requirements
+    /// - OAuth 2.0 User Context: For user actions and private data access
+    /// - App-only Bearer Token: For public data lookups
+    private func getBearerToken(for tool: XTool) -> String {
+        if requiresUserContext(tool) {
+            // Use user OAuth token for endpoints that require user context
+            guard let userToken = Config.currentUserToken else {
+                print("WARNING: \(tool.name) requires user authentication but no user token available. Falling back to API key.")
+                return Config.xApiKey
+            }
+            return userToken
+        } else {
+            // Use app-only bearer token for public endpoints
+            return Config.xApiKey
+        }
+    }
+
+    /// Determines if a tool requires OAuth 2.0 User Context authentication
+    private func requiresUserContext(_ tool: XTool) -> Bool {
+        switch tool {
+        // MARK: Posts/Tweets - Write Operations
+        case .createTweet, .deleteTweet:
+            return true
+
+        // MARK: Likes
+        case .likeTweet, .unlikeTweet:
+            return true
+
+        // MARK: Retweets - Write Operations
+        case .retweet, .unretweet:
+            return true
+
+        // MARK: Users - Manage Operations
+        case .followUser, .unfollowUser,
+             .muteUser, .unmuteUser,
+             .blockUser, .unblockUser,
+             .blockUserDMs, .unblockUserDMs:
+            return true
+
+        // MARK: Users - Private Data Lookups
+        case .getAuthenticatedUser,
+             .getMutedUsers,
+             .getBlockedUsers:
+            return true
+
+        // MARK: Lists - Write Operations
+        case .createList, .deleteList, .updateList,
+             .addListMember, .removeListMember,
+             .pinList, .unpinList:
+            return true
+
+        // MARK: Direct Messages - All Operations (private data)
+        case .createDMConversation,
+             .sendDMToConversation,
+             .sendDMToParticipant,
+             .getDMEvents,
+             .getConversationDMs,
+             .deleteDMEvent,
+             .getDMEventDetails:
+            return true
+
+        // MARK: Bookmarks - All Operations (private data)
+        case .addBookmark, .removeBookmark, .getUserBookmarks:
+            return true
+
+        // MARK: Community Notes - Write Operations
+        case .createNote, .deleteNote, .evaluateNote:
+            return true
+
+        // MARK: Public Read Operations - Use Bearer Token
+        // Posts/Tweets Lookups
+        case .getTweet, .getTweets,
+             .searchRecentTweets, .searchAllTweets,
+             .getRecentTweetCounts, .getAllTweetCounts:
+            return false
+
+        // Likes/Retweets Lookups
+        case .getLikingUsers, .getUserLikedTweets,
+             .getRetweetedBy, .getRetweets:
+            return false
+
+        // Users - Public Lookups
+        case .getUserById, .getUserByUsername,
+             .getUsersById, .getUsersByUsername,
+             .getUserFollowing, .getUserFollowers:
+            return false
+
+        // Lists - Read Operations
+        case .getList, .getListMembers,
+             .getListTweets, .getListFollowers:
+            return false
+
+        // Spaces - All Lookups
+        case .getSpace, .getSpaces,
+             .getSpacesByCreator, .getSpaceTweets,
+             .searchSpaces, .getSpaceBuyers:
+            return false
+
+        // Community Notes - Lookups
+        case .getNotesWritten, .getPostsEligibleForNotes:
+            return false
+
+        // MARK: Streaming - Conservative: use user context
+        case .streamFilteredTweets, .manageStreamRules,
+             .getStreamRules, .getStreamRuleCounts,
+             .streamSample, .streamSample10:
+            return true
+
+        // MARK: Compliance - Conservative: use user context
+        case .createComplianceJob, .getComplianceJob, .listComplianceJobs:
+            return true
+
+        // MARK: Media - Conservative: use user context
+        case .uploadMedia, .getMediaStatus,
+             .initializeChunkedUpload, .appendChunkedUpload,
+             .finalizeChunkedUpload, .createMediaMetadata,
+             .getMediaAnalytics:
+            return true
+
+        // MARK: Trends - Conservative: use bearer token for public data
+        case .getTrendsByWoeid, .getPersonalizedTrends:
+            return false
+
+        // MARK: Integrations
+        case .createLinearTicket:
+            return false // Linear doesn't use X auth
+        }
+    }
 
     func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
         do {
@@ -643,10 +768,6 @@ class XToolOrchestrator {
             }
             path = "/2/media/\(mediaKey)"
             method = .get
-            
-        case .createLinearTicket:
-             // This tool is handled via LinearAPIService, not the X API orchestrator.
-             throw XToolCallError(code: "INVALID_TOOL_HANDLER", message: "create_linear_ticket should be handled by LinearAPIService")
         }
 
         // Build URL
@@ -661,7 +782,9 @@ class XToolOrchestrator {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        // Use the appropriate authentication based on endpoint requirements
+        let token = getBearerToken(for: tool)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         // Add body if present
