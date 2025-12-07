@@ -32,12 +32,25 @@ class AudioStreamer: NSObject {
 
     // XAI audio format: 24kHz, 16-bit PCM, mono
     private let xaiSampleRate: Double = 24000
-    private let xaiFormat = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                         sampleRate: 24000,
+
+    // Lazy initialization to ensure formats are created after audio session is configured
+    private lazy var xaiFormat: AVAudioFormat = {
+        guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                         sampleRate: xaiSampleRate,
                                          channels: 1,
-                                         interleaved: false)!
+                                         interleaved: false) else {
+            fatalError("Failed to create XAI audio format with sample rate: \(xaiSampleRate)")
+        }
+        return format
+    }()
+
     // Internal processing format (usually standard Float32)
-    private let processingFormat = AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 1)!
+    private lazy var processingFormat: AVAudioFormat = {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: xaiSampleRate, channels: 1) else {
+            fatalError("Failed to create processing audio format with sample rate: \(xaiSampleRate)")
+        }
+        return format
+    }()
 
     override init() {
         super.init()
@@ -50,11 +63,18 @@ class AudioStreamer: NSObject {
         do {
             // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
             try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .allowAirPlay])
+
+            // Set preferred sample rate and validate it
             try audioSession.setPreferredSampleRate(xaiSampleRate)
-            try audioSession.setActive(true)
+            let actualSampleRate = audioSession.sampleRate
             print("✅ Audio session configured")
+            print("   Preferred sample rate: \(xaiSampleRate)Hz")
+            print("   Actual sample rate: \(actualSampleRate)Hz")
+
+            try audioSession.setActive(true)
         } catch {
             print("❌ Failed to setup audio session: \(error)")
+            print("   This may cause audio format issues")
         }
 
         // STEP 2: Create and configure audio engine
@@ -69,10 +89,14 @@ class AudioStreamer: NSObject {
 
         // Connect player -> Mixer -> Output
         // Use processingFormat (Float32) to ensure matching format for scheduling
-        audioEngine.connect(playerNode, to: mixerNode, format: processingFormat)
+        // Access processingFormat here to trigger lazy initialization
+        let connectedFormat = processingFormat
+        print("   Connecting player with format: \(connectedFormat.sampleRate)Hz, \(connectedFormat.channelCount) channels")
+        audioEngine.connect(playerNode, to: mixerNode, format: connectedFormat)
 
-        // Use the XAI format for consistency reference
+        // Use the XAI format for consistency reference (trigger lazy initialization)
         audioFormat = xaiFormat
+        print("   XAI format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
 
         // STEP 4: Enable Voice Processing (AEC) on Input Node - AFTER session is configured
         do {
