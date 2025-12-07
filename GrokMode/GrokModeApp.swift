@@ -11,7 +11,7 @@ import SwiftUI
 struct GrokModeApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            VoiceAssistantView()
         }
     }
 }

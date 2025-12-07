@@ -15,29 +15,25 @@ struct GrokPrimaryContentBlock: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Top: User icon and name container
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .center, spacing: 12) {
+            // Top: User icon and name centered and stacked
+            VStack(spacing: 6) {
                 Image(userIcon)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .background(.white)
+                    .frame(width: 50, height: 50)
+                    .background(.white.opacity(0.3))
                     .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.primary)
+                Text(displayName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.primary)
 
-                    Text("@\(username)")
-                        .font(.system(size: 13))
-                        .foregroundColor(.gray)
-                }
-                .frame(height: 40, alignment: .leading)
-
-                Spacer()
+                Text("@\(username)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
             }
+            .frame(maxWidth: .infinity)
 
             // Middle: Tweet text content with max height
             Text(text)
@@ -62,10 +58,7 @@ struct GrokPrimaryContentBlock: View {
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(.primaryChatItemBackground.opacity(0.3))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.gray.opacity(0.7), lineWidth: 1)
+                .stroke(Color.gray.opacity(0.7), lineWidth: 0.5)
         )
         .padding(.horizontal, 10)
     }
