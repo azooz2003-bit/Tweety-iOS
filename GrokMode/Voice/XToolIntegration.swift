@@ -14,13 +14,14 @@ struct XToolIntegration {
     static let demoTools: [XTool] = [
         .searchRecentTweets,
         .createTweet, // For quoting/replying
-        .getUserByUsername
+        .getUserByUsername,
+        .createLinearTicket // Now a first-class tool
     ]
     
     static func getToolDefinitions() -> [VoiceMessage.ToolDefinition] {
         var definitions: [VoiceMessage.ToolDefinition] = []
         
-        // Add real X tools
+        // Add all X tools (including Linear)
         for tool in demoTools {
             if let schema = try? toolJSONSchema(for: tool) {
                 definitions.append(VoiceMessage.ToolDefinition(
@@ -32,43 +33,17 @@ struct XToolIntegration {
             }
         }
         
-        // Add Mock Linear Tool
-        let linearSchema = """
-        {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "string",
-              "description": "Title of the ticket"
-            },
-            "description": {
-              "type": "string",
-              "description": "Description of the bug or issue"
-            },
-            "priority": {
-              "type": "string",
-              "enum": ["high", "medium", "low"]
-            }
-          },
-          "required": ["title", "description"]
-        }
-        """
-        
-        definitions.append(VoiceMessage.ToolDefinition(
-            type: "function",
-            name: "create_linear_ticket",
-            description: "Create a new ticket in Linear for engineering to track a bug or task.",
-            parameters: linearSchema
-        ))
-        
         return definitions
     }
     
-    // Helper to convert internal JSONSchema to the string format OpenAI/XAIVoice expects
-    private static func toolJSONSchema(for tool: XTool) throws -> String {
+    // Helper to convert internal JSONSchema to the JSONValue format OpenAI/XAIVoice expects
+    private static func toolJSONSchema(for tool: XTool) throws -> VoiceMessage.JSONValue {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(tool.jsonSchema)
-        return String(data: data, encoding: .utf8) ?? "{}"
+        
+        // Decode into generic JSONValue
+        let decoder = JSONDecoder()
+        return try decoder.decode(VoiceMessage.JSONValue.self, from: data)
     }
 }

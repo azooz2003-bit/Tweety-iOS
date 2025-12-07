@@ -39,6 +39,7 @@ struct VoiceTestView: View {
             .navigationViewStyle(.stack)
         }
         .overlay(ToolConfirmationOverlay(viewModel: viewModel))
+        .environment(viewModel.sessionState)
     }
 }
 
@@ -99,9 +100,33 @@ struct ConnectionStatusView: View {
             
             HStack {
                 Text("Audio:")
-                Image(systemName: viewModel.isAudioStreaming ? "waveform.circle.fill" : "waveform.circle")
-                    .foregroundColor(viewModel.isAudioStreaming ? .blue : .gray)
-                Text(viewModel.isAudioStreaming ? "Streaming" : "Not Streaming")
+                Image(systemName: "waveform")
+                    .foregroundColor(viewModel.isAudioStreaming ? .green : .gray)
+                Text(viewModel.isAudioStreaming ? "Streaming Audio" : "Audio Idle")
+            }
+            
+            // X Auth Status
+            HStack {
+                Text("X Auth:")
+                if viewModel.isXAuthenticated {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.blue)
+                    Text(viewModel.xUserHandle ?? "Logged In")
+                    Spacer()
+                    Button("Logout") {
+                        viewModel.logoutX()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                } else {
+                    Image(systemName: "xmark.circle").foregroundColor(.gray)
+                    Text("Not Logged In")
+                    Spacer()
+                    Button("Login with X") {
+                        viewModel.loginWithX()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.black)
+                }
             }
 
             HStack {
@@ -374,6 +399,10 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     var isGeraldSpeaking = false
     var messageLog: [DebugMessage] = []
     
+    // Conversation State (For Truncation)
+    var currentItemId: String?
+    var currentAudioStartTime: Date?
+    
     // Scenario Configuration
     var scenarioTopic: String = "Grok bug"
     
@@ -384,8 +413,16 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     // XAI Service
     internal var xaiService: XAIVoiceService?
     
+    // Linear Service
+    private let linearService = LinearAPIService(apiToken: Config.linearApiKey)
+    
     // Audio Streamer
     private var audioStreamer: AudioStreamer!
+
+    // X Auth
+    var isXAuthenticated = false
+    var xUserHandle: String?
+    private var authCancellable: AnyCancellable?
 
     override init() {
         super.init()
@@ -393,7 +430,33 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
         audioStreamer = AudioStreamer()
         audioStreamer.delegate = self
         
+        setupAuthObservation()
         checkPermissions()
+    }
+
+    // Session State
+    var sessionState = SessionState()
+
+    private func setupAuthObservation() {
+        // Initial state
+        self.isXAuthenticated = XAuthService.shared.isAuthenticated
+        self.xUserHandle = XAuthService.shared.currentUserHandle
+        
+        // Observe changes
+        authCancellable = XAuthService.shared.$isAuthenticated
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isAuthenticated in
+                self?.isXAuthenticated = isAuthenticated
+                self?.xUserHandle = XAuthService.shared.currentUserHandle
+            }
+    }
+    
+    func loginWithX() {
+        XAuthService.shared.login()
+    }
+    
+    func logoutX() {
+        XAuthService.shared.logout()
     }
 
     var canConnect: Bool {
@@ -471,7 +534,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
         logMessage(.system, .system, "Starting CEO Demo connection", "")
 
         // Initialize XAI service
-        xaiService = XAIVoiceService(apiKey: Config.xAiApiKey)
+        xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
         
         // Tool Orchestrator
         let toolOrchestrator = XToolOrchestrator()
@@ -508,18 +571,25 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 }
                 
                 let searchResult = await toolOrchestrator.executeTool(.searchRecentTweets, parameters: ["query": self.scenarioTopic, "max_results": 10])
+                print("X TOOL: Pre-fetching tweets for topic: '\(self.scenarioTopic)'")
                 
                 var contextString = ""
                 // XToolCallResult is a struct, handle success/failure manually
                 if searchResult.success {
                      contextString = searchResult.response ?? "No tweets found."
+                     print("X TOOL: Pre-fetch success. Result length: \(contextString.count) chars")
+                     print("X TOOL: Pre-fetch content (truncated): \(contextString.prefix(200))...")
+                     
                      await MainActor.run {
                          self.logMessage(.system, .system, "Found relevant tweets", "")
                      }
                 } else {
-                    contextString = "Error fetching tweets: \(searchResult.error?.message ?? "Unknown error")"
+                    let errorMsg = searchResult.error?.message ?? "Unknown error"
+                    print("X TOOL: Pre-fetch failed. Error: \(errorMsg)")
+                    contextString = "Error fetching tweets: \(errorMsg)"
+                    
                     await MainActor.run {
-                        self.logMessage(.error, .system, "Tweet pre-fetch failed", searchResult.error?.message ?? "Unknown error")
+                        self.logMessage(.error, .system, "Tweet pre-fetch failed", errorMsg)
                     }
                 }
 
@@ -558,6 +628,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                    item_id: nil,
                    content_index: nil,
                    audio_start_ms: nil,
+                   audio_end_ms: nil,
                    start_time: nil,
                    timestamp: nil,
                    part: nil,
@@ -666,18 +737,36 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 title = "Response Started"
                 details = "Gerald is speaking"
 
-            case "response.function_call_arguments.done": // OpenAI Realtime format for tool calls
+            case "response.function_call_arguments.done":
                  title = "Function Args Done"
                  details = "Arguments parsed"
+                 // Trigger tool call here as per user request
+                 if let callId = message.call_id, let name = message.name, let args = message.arguments {
+                     let toolCall = VoiceMessage.ToolCall(
+                         id: callId,
+                         type: "function",
+                         function: VoiceMessage.FunctionCall(name: name, arguments: args)
+                     )
+                     self.handleToolCall(toolCall)
+                     details = "Tool Executing: \(name)"
+                 }
                 
             case "response.output_item.added":
                title = "Output Item Added"
                details = "Processing new item"
+               // Also keep this in case XAI sends it this way too
                if let item = message.item, let toolCalls = item.tool_calls {
                    for toolCall in toolCalls {
                        self.handleToolCall(toolCall)
                    }
                    details = "Tool calls handled: \(toolCalls.count)"
+               }
+               
+               // Track item ID for potential truncation
+               if let item = message.item {
+                   self.currentItemId = item.id
+                   // Reset audio start time, will be set on first delta
+                   self.currentAudioStartTime = nil 
                }
 
             case "response.done":
@@ -698,6 +787,21 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
             case "input_audio_buffer.speech_started":
                 title = "Speech Detected"
                 details = "User started speaking"
+                self.audioStreamer.stopPlayback()
+                self.isGeraldSpeaking = false
+                
+                // Handle Truncation (Context Sync)
+                if let itemId = self.currentItemId, let startTime = self.currentAudioStartTime {
+                    // Calculate elapsed time in ms
+                    let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
+                    
+                    // Send truncate event to server
+                    try? self.xaiService?.sendTruncationEvent(itemId: itemId, audioEndMs: elapsed)
+                    
+                    // Clear state
+                    self.currentItemId = nil
+                    self.currentAudioStartTime = nil
+                }
 
             case "input_audio_buffer.speech_stopped":
                 title = "Speech Ended"
@@ -711,9 +815,14 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
                     self.audioStreamer.playAudio(audioData) 
                     self.isGeraldSpeaking = true
+                    
+                    // Track start time of first audio chunk for this item
+                    if self.currentAudioStartTime == nil {
+                        self.currentAudioStartTime = Date()
+                    }
                 }
-                title = "Audio Chunk"
-                details = "Gerald speaking (\(message.delta?.count ?? 0) chars)"
+                // Suppressed logging as per user request
+                return
 
             case "error":
                 title = "XAI Error"
@@ -725,12 +834,62 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 title = message.type
                 if let text = message.text {
                     details = text
+                    // Check for XML tool calls in text events (if any)
+                    self.checkForHallucinatedToolCalls(in: text)
                 } else if let audio = message.audio {
-                    details = "Audio data (\(audio.count) chars)"
+                    // Suppress audio logs
+                    return
                 }
             }
-
+            
             self.logMessage(.websocket, .received, title, details)
+        }
+    }
+    
+    // Check for XML-style function calls that the model might generate as text
+    private func checkForHallucinatedToolCalls(in text: String) {
+        // Regex to find <function_call name=X>...</function_call>
+        // Simple implementation assuming non-nested structure
+        let pattern = "<function_call name=([^>]+)>(.*?)</function_call>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { return }
+        
+        let nsString = text as NSString
+        let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        for result in results {
+            let functionName = nsString.substring(with: result.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let innerContent = nsString.substring(with: result.range(at: 2))
+            
+            print("FALLBACK: Found XML tool call: \(functionName)")
+            
+            // Parse arguments: <argument name=key>value</argument>
+            var jsonArgs: [String: Any] = [:]
+            let argPattern = "<argument name=([^>]+)>(.*?)</argument>"
+            if let argRegex = try? NSRegularExpression(pattern: argPattern, options: [.dotMatchesLineSeparators]) {
+                let argResults = argRegex.matches(in: innerContent, options: [], range: NSRange(location: 0, length: (innerContent as NSString).length))
+                
+                for argResult in argResults {
+                    let key = (innerContent as NSString).substring(with: argResult.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let value = (innerContent as NSString).substring(with: argResult.range(at: 2))
+                    jsonArgs[key] = value
+                }
+            }
+            
+            // Serialize to JSON string for compatibility
+            if let jsonData = try? JSONSerialization.data(withJSONObject: jsonArgs),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                
+                let toolCall = VoiceMessage.ToolCall(
+                    id: "call_xml_\(Int(Date().timeIntervalSince1970))", // Generate fake ID
+                    type: "function",
+                    function: VoiceMessage.FunctionCall(name: functionName, arguments: jsonString)
+                )
+                
+                // Execute on main thread
+                DispatchQueue.main.async {
+                    self.handleToolCall(toolCall)
+                }
+            }
         }
     }
 
@@ -785,41 +944,41 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     }
 }
 
+// Assuming sessionState is a property of VoiceTestViewModel
+// var sessionState = SessionState()
+
 // MARK: - ViewModel Extensions for Tools
 
 extension VoiceTestViewModel {
+    private func isSafeTool(_ functionName: String) -> Bool {
+        // Read-only operations are safe to auto-execute
+        // "get...", "search...", "list..."
+        if functionName.hasPrefix("get") || 
+           functionName.hasPrefix("search") || 
+           functionName.hasPrefix("list") {
+            return true
+        }
+        return false
+    }
+
     func handleToolCall(_ toolCall: VoiceMessage.ToolCall) {
-        logMessage(.system, .received, "Tool Call", "\(toolCall.function.name)")
+        print("🛠️ Handling Tool Call: \(toolCall.function.name)")
         
         let functionName = toolCall.function.name
-        let arguments = toolCall.function.arguments
         
-        if functionName == "create_tweet" {
-            // Parse arguments for preview
-            let previewTitle = "Post Tweet?"
-            let previewContent = arguments
-            
-            self.pendingToolCall = PendingToolCall(
-                id: toolCall.id,
-                functionName: functionName,
-                arguments: arguments,
-                previewTitle: previewTitle,
-                previewContent: previewContent
-            )
-        } else if functionName == "search_recent_tweets" {
-             // Automate read-only tools
-             executeTool(toolCall)
-        } else if functionName == "create_linear_ticket" {
-             self.pendingToolCall = PendingToolCall(
-                id: toolCall.id,
-                functionName: functionName,
-                arguments: arguments,
-                previewTitle: "Create Linear Ticket?",
-                previewContent: arguments
-            )
-        } else {
-            // Default execute
+        if isSafeTool(functionName) {
+            print("✅ Auto-executing safe tool: \(functionName)")
             executeTool(toolCall)
+        } else {
+            print("⚠️ Requesting approval for unsafe tool: \(functionName)")
+            
+            pendingToolCall = PendingToolCall(
+                id: toolCall.id,
+                functionName: functionName,
+                arguments: toolCall.function.arguments,
+                previewTitle: "Allow \(functionName)?",
+                previewContent: toolCall.function.arguments
+            )
         }
     }
     
@@ -836,87 +995,70 @@ extension VoiceTestViewModel {
         guard let toolCall = pendingToolCall else { return }
         
         // Send rejection output
-        sendToolOutput(toolCallId: toolCall.id, output: "User denied this action.")
+        try? xaiService?.sendToolOutput(toolCallId: toolCall.id, output: "User denied this action.", success: false)
         pendingToolCall = nil
     }
     
     private func executeTool(_ toolCall: VoiceMessage.ToolCall) {
         Task {
-            logMessage(.system, .system, "Executing Tool", toolCall.function.name)
+            // Execute tool
+            // For now, convert [String:Any] ... actually `executeTool` takes [String:Any]
             
-            var output = ""
+            // We need to parse arguments string back to dict
+            guard let data = toolCall.function.arguments.data(using: .utf8),
+                  let parameters = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                      print("Failed to parse arguments for execution")
+                      self.sessionState.updateResponse(id: toolCall.id, responseString: "Failed to parse params", success: false)
+                      return
+                  }
             
-            if toolCall.function.name == "create_linear_ticket" {
-                output = "{ \"status\": \"success\", \"ticket_id\": \"LIN-1234\", \"url\": \"https://linear.app/grok/issue/LIN-1234\" }"
-            } else if let tool = XTool(rawValue: toolCall.function.name) {
-                // Parse args
-                if let data = toolCall.function.arguments.data(using: .utf8),
-                   let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    
-                    let orchestrator = XToolOrchestrator()
-                    let result = await orchestrator.executeTool(tool, parameters: params)
-                    
-                    if result.success {
-                        output = result.response ?? "{}"
-                    } else {
-                        output = "{ \"error\": \"\(result.error?.message ?? "Unknown Error")\" }"
-                    }
+            let orchestrator = XToolOrchestrator()
+            
+            // Only support XTools for now? Or check name
+            if let tool = XTool(rawValue: toolCall.function.name) {
+                let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
+                
+                let outputString: String
+                let isSuccess: Bool
+                
+                if result.success, let response = result.response {
+                    outputString = response
+                    isSuccess = true
+                    print("Tool execution success: \(response)")
                 } else {
-                    output = "{ \"error\": \"Invalid arguments\" }"
+                    outputString = result.error?.message ?? "Unknown error"
+                    isSuccess = false
+                    print("Tool execution failed: \(outputString)")
                 }
+                
+                // Update Session State handled by service now?
+                // Actually, the ViewModel executes it, so ViewModel knows the result first.
+                // But the user requested integration INTO XAIVoiceService.
+                // So calling service.sendToolOutput will handle the logging.
+                
+                // Send result back to voice API
+                do {
+                    try self.xaiService?.sendToolOutput(toolCallId: toolCall.id, output: outputString, success: isSuccess)
+                    
+                    
+                    // Trigger response creation
+                    try self.xaiService?.createResponse()
+                    
+                } catch {
+                    print("Failed to send tool output: \(error)")
+                }
+                
             } else {
-                output = "{ \"error\": \"Unknown tool\" }"
+                print("Unknown tool: \(toolCall.function.name)")
+                self.sessionState.updateResponse(id: toolCall.id, responseString: "Unknown tool", success: false)
             }
             
-            sendToolOutput(toolCallId: toolCall.id, output: output)
+            await MainActor.run {
+                self.pendingToolCall = nil
+            }
         }
     }
     
-    private func sendToolOutput(toolCallId: String, output: String) {
-        let message = VoiceMessage(
-            type: "conversation.item.create",
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: VoiceMessage.ConversationItem(
-                id: nil,
-                object: nil,
-                type: "function_call_output",
-                status: nil,
-                role: "system", // or tool?
-                content: [VoiceMessage.ContentItem(
-                    type: "function_call_output", // Check API spec
-                    text: nil,
-                    transcript: nil,
-                    tool_call_id: toolCallId,
-                    output: output
-                )]
-            ),
-            tools: nil,
-            tool_call_id: nil,
-            event_id: nil,
-            previous_item_id: nil,
-            response_id: nil,
-            output_index: nil,
-            item_id: nil,
-            content_index: nil,
-            audio_start_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
-        )
-        
-        do {
-            try xaiService?.sendMessage(message)
-            try xaiService?.createResponse()
-            logMessage(.system, .sent, "Tool Output Sent", "\(output.count) chars")
-        } catch {
-            logMessage(.error, .system, "Failed to send tool output", error.localizedDescription)
-        }
-    }
 }
 
 extension FixedWidthInteger {
