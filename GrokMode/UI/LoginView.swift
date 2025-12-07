@@ -84,7 +84,7 @@ struct LoginView: View {
             Spacer()
             
             // Footer
-            Text("Powered by XAI & Linear")
+            Text("Powered by XAI")
                 .font(.caption2)
         }
         .padding()

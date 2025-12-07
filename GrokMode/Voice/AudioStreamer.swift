@@ -44,42 +44,41 @@ class AudioStreamer: NSObject {
     }
 
     private func setupAudioEngine() {
-        audioEngine = AVAudioEngine()
-        inputNode = audioEngine.inputNode
-        playerNode = AVAudioPlayerNode()
-        mixerNode = audioEngine.mainMixerNode
-        
-        // 1. Enable Voice Processing (AEC) on Input Node
-        do {
-            try inputNode.setVoiceProcessingEnabled(true)
-            print("✅ Voice Processing (AEC) enabled on input node")
-        } catch {
-            print("❌ Failed to enable Voice Processing: \(error)")
-        }
-
-        // 2. Attach and Connect Nodes
-        // We use the playerNode for playing back the AI's voice
-        audioEngine.attach(playerNode)
-        
-        // Connect player -> Mixer -> Output
-        // Use processingFormat (Float32) to ensure matching format for scheduling
-        audioEngine.connect(playerNode, to: mixerNode, format: processingFormat)
-        
-        // Use the XAI format for consistency refernece
-        audioFormat = xaiFormat
-
-        
-        //
-        // Set up audio session
+        // STEP 1: Set up audio session FIRST (before anything else)
         let audioSession = AVAudioSession.sharedInstance()
         do {
             // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
             try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .allowAirPlay])
             try audioSession.setPreferredSampleRate(xaiSampleRate)
-            // try audioSession.setPrefersEchoCancelledInput(true) // Deprecated/Redundant if setVoiceProcessingEnabled is used, but harmless
             try audioSession.setActive(true)
+            print("✅ Audio session configured")
         } catch {
             print("❌ Failed to setup audio session: \(error)")
+        }
+
+        // STEP 2: Create and configure audio engine
+        audioEngine = AVAudioEngine()
+        inputNode = audioEngine.inputNode
+        playerNode = AVAudioPlayerNode()
+        mixerNode = audioEngine.mainMixerNode
+
+        // STEP 3: Attach and Connect Nodes
+        // We use the playerNode for playing back the AI's voice
+        audioEngine.attach(playerNode)
+
+        // Connect player -> Mixer -> Output
+        // Use processingFormat (Float32) to ensure matching format for scheduling
+        audioEngine.connect(playerNode, to: mixerNode, format: processingFormat)
+
+        // Use the XAI format for consistency reference
+        audioFormat = xaiFormat
+
+        // STEP 4: Enable Voice Processing (AEC) on Input Node - AFTER session is configured
+        do {
+            try inputNode.setVoiceProcessingEnabled(true)
+            print("✅ Voice Processing (AEC) enabled on input node")
+        } catch {
+            print("❌ Failed to enable Voice Processing: \(error)")
         }
     }
 
