@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A34575C42EE5123F00E6576A /* JSONSchema in Frameworks */ = {isa = PBXBuildFile; productRef = A34575C32EE5123F00E6576A /* JSONSchema */; };
+		A34575C72EE514EE00E6576A /* Orb in Frameworks */ = {isa = PBXBuildFile; productRef = A34575C62EE514EE00E6576A /* Orb */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A34575C72EE514EE00E6576A /* Orb in Frameworks */,
 				A34575C42EE5123F00E6576A /* JSONSchema in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -118,6 +120,7 @@
 			name = GrokMode;
 			packageProductDependencies = (
 				A34575C32EE5123F00E6576A /* JSONSchema */,
+				A34575C62EE514EE00E6576A /* Orb */,
 			);
 			productName = GrokMode;
 			productReference = A34575792EE5109700E6576A /* GrokMode.app */;
@@ -203,6 +206,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A34575C22EE5123F00E6576A /* XCRemoteSwiftPackageReference "JSONSchema" */,
+				A34575C52EE514EE00E6576A /* XCRemoteSwiftPackageReference "Orb" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A345757A2EE5109700E6576A /* Products */;
@@ -597,6 +601,14 @@
 				minimumVersion = 1.3.1;
 			};
 		};
+		A34575C52EE514EE00E6576A /* XCRemoteSwiftPackageReference "Orb" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/metasidd/Orb.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -604,6 +616,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A34575C22EE5123F00E6576A /* XCRemoteSwiftPackageReference "JSONSchema" */;
 			productName = JSONSchema;
+		};
+		A34575C62EE514EE00E6576A /* Orb */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A34575C52EE514EE00E6576A /* XCRemoteSwiftPackageReference "Orb" */;
+			productName = Orb;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
