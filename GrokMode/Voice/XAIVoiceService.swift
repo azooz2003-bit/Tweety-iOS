@@ -42,6 +42,7 @@ struct VoiceMessage: Codable {
     let item_id: String?
     let content_index: Int?
     let audio_start_ms: Int?
+    let audio_end_ms: Int?
     let start_time: Double?
     let timestamp: Int?
     let part: ContentPart?
@@ -226,6 +227,7 @@ class XAIVoiceService {
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession
+    let sessionState: SessionState
 
     // Configuration
     internal let voice = "Eve"
@@ -268,8 +270,9 @@ class XAIVoiceService {
     var onMessageReceived: ((VoiceMessage) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(apiKey: String) {
+    init(apiKey: String, sessionState: SessionState) {
         self.apiKey = apiKey
+        self.sessionState = sessionState
         self.urlSession = URLSession(configuration: .default)
     }
 
@@ -425,7 +428,7 @@ class XAIVoiceService {
             text: nil,
             delta: nil,
             session: VoiceMessage.SessionConfig(
-                instructions: instructions,
+                instructions: instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).",
                 voice: voice,
                 audio: VoiceMessage.AudioConfig(
                     input: VoiceMessage.AudioFormat(
@@ -453,6 +456,7 @@ class XAIVoiceService {
             item_id: nil,
             content_index: nil,
             audio_start_ms: nil,
+            audio_end_ms: nil,
             start_time: nil,
             timestamp: nil,
             part: nil,
@@ -481,6 +485,7 @@ class XAIVoiceService {
             item_id: nil,
             content_index: nil,
             audio_start_ms: nil,
+            audio_end_ms: nil,
             start_time: nil,
             timestamp: nil,
             part: nil,
@@ -505,6 +510,7 @@ class XAIVoiceService {
             item_id: nil,
             content_index: nil,
             audio_start_ms: nil,
+            audio_end_ms: nil,
             start_time: nil,
             timestamp: nil,
             part: nil,
@@ -529,6 +535,81 @@ class XAIVoiceService {
             item_id: nil,
             content_index: nil,
             audio_start_ms: nil,
+            audio_end_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
+        )
+        try sendMessage(message)
+    }
+    
+    func sendToolOutput(toolCallId: String, output: String, success: Bool) throws {
+        // Log response to SessionState
+        sessionState.updateResponse(id: toolCallId, responseString: output, success: success)
+        
+        let toolOutput = VoiceMessage(
+            type: "conversation.item.create",
+            audio: nil,
+            text: nil,
+            delta: nil,
+            session: nil,
+            item: VoiceMessage.ConversationItem(
+                id: nil,
+                object: nil,
+                type: "function_call_output",
+                status: nil,
+                role: nil,
+                content: nil,
+                tool_calls: nil,
+                call_id: toolCallId,
+                output: output,
+                name: nil,
+                arguments: nil
+            ),
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            audio_end_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
+        )
+        try sendMessage(toolOutput)
+        
+        // Trigger response creation if needed immediately
+        // try createResponse()
+    }
+
+    func sendTruncationEvent(itemId: String, audioEndMs: Int, contentIndex: Int = 0) throws {
+        print("✂️ Truncating item \(itemId) at \(audioEndMs)ms")
+        let message = VoiceMessage(
+            type: "conversation.item.truncate",
+            audio: nil,
+            text: nil,
+            delta: nil,
+            session: nil,
+            item: nil,
+            tools: nil,
+            tool_call_id: nil,
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: itemId,
+            content_index: contentIndex,
+            audio_start_ms: nil,
+            audio_end_ms: audioEndMs,
             start_time: nil,
             timestamp: nil,
             part: nil,
@@ -582,11 +663,10 @@ class XAIVoiceService {
     }
 
     private func handleTextMessage(_ text: String) {
-        print("🔊 Raw XAI WebSocket Message: \(text)")
+     
 
         do {
             let message = try JSONDecoder().decode(VoiceMessage.self, from: Data(text.utf8))
-            print("📨 Received message: \(message.type)")
 
             // Always call the message callback first
             onMessageReceived?(message)
@@ -600,6 +680,20 @@ class XAIVoiceService {
             case "session.updated":
                 print("✅ Session configured, ready for voice interaction")
                 onConnected?()
+                
+            case "response.function_call_arguments.done":
+                 if let callId = message.call_id,
+                    let name = message.name,
+                    let arguments = message.arguments {
+                     
+                     print("📝 Logging tool call to SessionState: \(name)")
+                     let params: [String: Any]? = {
+                         guard let data = arguments.data(using: .utf8) else { return nil }
+                         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                     }()
+                     
+                     sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
+                 }
 
             default:
                 break

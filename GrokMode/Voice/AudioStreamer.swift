@@ -128,6 +128,13 @@ class AudioStreamer: NSObject {
     }
     
     // Playback Function
+    func stopPlayback() {
+        if playerNode.isPlaying {
+            playerNode.stop()
+        }
+        print("🛑 Playback interrupted by user")
+    }
+
     func playAudio(_ data: Data) {
         // Convert the incoming Data (PCM16) to a playable buffer
         guard let buffer = convertDataToBuffer(data) else {

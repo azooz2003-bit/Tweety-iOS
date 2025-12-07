@@ -1,0 +1,158 @@
+//
+//  SessionState.swift
+//  GrokMode
+//
+//  Created by Matt Steele on 12/7/25.
+//
+
+import SwiftUI
+import Foundation
+
+// MARK: - Models
+
+struct ToolCallData: Identifiable, Codable {
+    let id: String
+    let toolName: String
+    let parameters: [String: String]
+    let timestamp: Date
+}
+
+struct XTweet: Codable, Identifiable {
+    let id: String
+    let text: String
+    let author_id: String?
+    let created_at: String?
+    // Add other fields as they become relevant
+}
+
+struct XUser: Codable, Identifiable {
+    let id: String
+    let name: String
+    let username: String
+    let profile_image_url: String?
+}
+
+// Duplicated from LinearAPIService to avoid module import issues if not in same module
+public struct LinearIssueStruct: Codable, Identifiable {
+    public let id: String
+    public let title: String
+    public let number: Int
+    public let url: String
+    public let createdAt: String
+}
+
+enum ToolResponseContent: Codable {
+    case tweets([XTweet])
+    case users([XUser])
+    case linearIssue(LinearIssueStruct)
+    case success(message: String)
+    case failure(message: String)
+    case raw(String)
+    
+    // Helper to decode from common formats
+    static func from(jsonString: String, toolName: String) -> ToolResponseContent {
+        let decoder = JSONDecoder()
+        let data = jsonString.data(using: .utf8) ?? Data()
+        
+        // Try precise decoding based on tool name
+        do {
+            switch toolName {
+            case "search_recent_tweets", "get_tweets":
+                // X API usually wraps lists in "data"
+                struct TweetResponse: Codable { let data: [XTweet] }
+                let response = try decoder.decode(TweetResponse.self, from: data)
+                return .tweets(response.data)
+                
+            case "create_tweet":
+                struct CreateTweetResponse: Codable { let data: XTweet }
+                let response = try decoder.decode(CreateTweetResponse.self, from: data)
+                return .tweets([response.data])
+                
+            case "get_user_by_username", "get_user_by_id":
+                 struct UserResponse: Codable { let data: XUser }
+                 let response = try decoder.decode(UserResponse.self, from: data)
+                 return .users([response.data])
+                
+            case "create_linear_ticket":
+                 // Linear returns the issue object directly or wrapped
+                 // Based on LinearAPIService, it returns a LinearIssue struct
+                 // But wait, the tool result is a stringified JSON of that struct
+                 let issue = try decoder.decode(LinearIssueStruct.self, from: data)
+                 return .linearIssue(issue)
+                
+            default:
+                break
+            }
+        } catch {
+            print("Failed to decode specific response for \(toolName): \(error)")
+        }
+        
+        // Fallback or generic success check not needed as we default to raw
+        return .raw(jsonString)
+    }
+}
+
+struct ToolResponseData: Codable {
+    let success: Bool
+    let content: ToolResponseContent
+    let timestamp: Date
+}
+
+struct ToolLog: Identifiable, Codable {
+    var id: String { call.id }
+    let call: ToolCallData
+    var response: ToolResponseData?
+}
+
+// MARK: - State
+
+@Observable
+class SessionState {
+    var toolCalls: [ToolLog] = []
+    
+    func addCall(id: String, toolName: String, parameters: [String: Any]) {
+        // Convert [String: Any] to [String: String] for storage, checking types
+        var stringParams: [String: String] = [:]
+        for (key, value) in parameters {
+            stringParams[key] = "\(value)"
+        }
+        
+        let callData = ToolCallData(
+            id: id,
+            toolName: toolName,
+            parameters: stringParams,
+            timestamp: Date()
+        )
+        
+        let log = ToolLog(call: callData, response: nil)
+        
+        // Append to start or end? Usually end makes sense for logs.
+        DispatchQueue.main.async {
+            self.toolCalls.append(log)
+        }
+    }
+    
+    func updateResponse(id: String, responseString: String, success: Bool) {
+        guard let index = toolCalls.firstIndex(where: { $0.id == id }) else { return }
+        
+        // Determine content type based on tool name
+        let toolName = toolCalls[index].call.toolName
+        let content: ToolResponseContent
+        
+        if success {
+            content = ToolResponseContent.from(jsonString: responseString, toolName: toolName)
+        } else {
+            content = .failure(message: responseString)
+        }
+        
+        let responseData = ToolResponseData(
+            success: success,
+            content: content,
+            timestamp: Date()
+        )
+        
+        DispatchQueue.main.async {
+            self.toolCalls[index].response = responseData
+        }
+    }
+}
