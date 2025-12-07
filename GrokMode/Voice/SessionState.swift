@@ -22,7 +22,21 @@ struct XTweet: Codable, Identifiable {
     let text: String
     let author_id: String?
     let created_at: String?
-    // Add other fields as they become relevant
+    let attachments: Attachments?
+    let public_metrics: PublicMetrics?
+
+    struct Attachments: Codable {
+        let media_keys: [String]?
+    }
+
+    struct PublicMetrics: Codable {
+        let retweet_count: Int?
+        let reply_count: Int?
+        let like_count: Int?
+        let quote_count: Int?
+        let impression_count: Int?  // Views
+        let bookmark_count: Int?
+    }
 }
 
 struct XUser: Codable, Identifiable {
@@ -30,6 +44,22 @@ struct XUser: Codable, Identifiable {
     let name: String
     let username: String
     let profile_image_url: String?
+}
+
+struct XMedia: Codable, Identifiable {
+    let media_key: String
+    let type: String  // "photo", "video", "animated_gif"
+    let url: String?  // Image URL for photos
+    let preview_image_url: String?  // For videos/gifs
+    let width: Int?
+    let height: Int?
+
+    var id: String { media_key }
+
+    // Get the best URL to display (prefer url for photos, preview for videos)
+    var displayUrl: String? {
+        url ?? preview_image_url
+    }
 }
 
 // Duplicated from LinearAPIService to avoid module import issues if not in same module
