@@ -9,6 +9,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+// MARK: - Main View
 
 struct VoiceTestView: View {
     @StateObject private var viewModel = VoiceTestViewModel()
@@ -23,141 +24,10 @@ struct VoiceTestView: View {
                         .fontWeight(.bold)
                         .padding(.top)
                     
-                    // Permission Section
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Microphone Permission")
-                            .font(.headline)
-                        
-                        HStack {
-                            Image(systemName: viewModel.micPermissionGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(viewModel.micPermissionGranted ? .green : .red)
-                            Text(viewModel.micPermissionStatus)
-                            Spacer()
-                            if !viewModel.micPermissionGranted {
-                                Button("Request Access") {
-                                    viewModel.requestMicrophonePermission()
-                                }
-                                .buttonStyle(.bordered)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(10)
-                    
-                    // Connection Section
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Connection Status")
-                            .font(.headline)
-                        
-                        HStack {
-                            Circle()
-                                .fill(viewModel.connectionStateColor)
-                                .frame(width: 12, height: 12)
-                            Text(viewModel.connectionStateText)
-                            Spacer()
-                            Text(viewModel.lastActivityText)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        HStack {
-                            Text("Session:")
-                            Image(systemName: viewModel.sessionConfigured ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(viewModel.sessionConfigured ? .green : .gray)
-                            Text(viewModel.sessionConfigured ? "Configured" : "Not Configured")
-                        }
-                        
-                        HStack {
-                            Text("Audio:")
-                            Image(systemName: viewModel.isAudioStreaming ? "waveform.circle.fill" : "waveform.circle")
-                                .foregroundColor(viewModel.isAudioStreaming ? .blue : .gray)
-                            Text(viewModel.isAudioStreaming ? "Streaming" : "Not Streaming")
-                        }
-
-                        HStack {
-                            Text("Gerald:")
-                            Image(systemName: viewModel.isGeraldSpeaking ? "speaker.wave.3.fill" : "speaker.slash.fill")
-                                .foregroundColor(viewModel.isGeraldSpeaking ? .green : .gray)
-                            Text(viewModel.isGeraldSpeaking ? "Speaking" : "Silent")
-                        }
-                        
-                        VStack(spacing: 10) {
-                            Button(action: viewModel.connect) {
-                                Text(viewModel.isConnecting ? "Connecting..." : "Connect")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!viewModel.canConnect || viewModel.isConnecting)
-                            
-                            Button(action: viewModel.disconnect) {
-                                Text("Disconnect")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(viewModel.connectionState == .disconnected)
-                            
-                            Button(action: viewModel.clearLog) {
-                                Text("Clear Log")
-                            }
-                            .buttonStyle(.bordered)
-                            
-                            Button(action: viewModel.sendTestAudio) {
-                                Text("Send Test Audio")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(viewModel.connectionState != .connected)
-                            
-                            Button(action: {
-                                if viewModel.isAudioStreaming {
-                                    viewModel.stopAudioStreaming()
-                                } else {
-                                    viewModel.startAudioStreaming()
-                                }
-                            }) {
-                                Text(viewModel.isAudioStreaming ? "Stop Streaming" : "Start Streaming")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(viewModel.connectionState != .connected)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(10)
-                    
-                    // Message Log
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text("Message Log")
-                                .font(.headline)
-                            Spacer()
-                            Text("\(viewModel.messageLog.count) messages")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        ScrollViewReader { scrollView in
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ForEach(viewModel.messageLog) { message in
-                                        MessageRow(message: message)
-                                            .id(message.id)
-                                    }
-                                }
-                                .padding(.horizontal, 4)
-                            }
-                            .frame(height: 300)
-                            .background(Color.black.opacity(0.05))
-                            .cornerRadius(8)
-                            .onChange(of: viewModel.messageLog.count) { _ in
-                                if let lastMessage = viewModel.messageLog.last {
-                                    scrollView.scrollTo(lastMessage.id, anchor: .bottom)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.green.opacity(0.1))
-                    .cornerRadius(10)
+                    // Components
+                    PermissionStatusView(viewModel: viewModel)
+                    ConnectionStatusView(viewModel: viewModel)
+                    MessageLogView(viewModel: viewModel)
                     
                     Spacer()
                 }
@@ -168,8 +38,215 @@ struct VoiceTestView: View {
             }
             .navigationViewStyle(.stack)
         }
+        .overlay(ToolConfirmationOverlay(viewModel: viewModel))
     }
 }
+
+// MARK: - Subviews
+
+struct PermissionStatusView: View {
+    @ObservedObject var viewModel: VoiceTestViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Microphone Permission")
+                .font(.headline)
+            
+            HStack {
+                Image(systemName: viewModel.micPermissionGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(viewModel.micPermissionGranted ? .green : .red)
+                Text(viewModel.micPermissionStatus)
+                Spacer()
+                if !viewModel.micPermissionGranted {
+                    Button("Request Access") {
+                        viewModel.requestMicrophonePermission()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding()
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+
+struct ConnectionStatusView: View {
+    @ObservedObject var viewModel: VoiceTestViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Connection Status")
+                .font(.headline)
+            
+            HStack {
+                Circle()
+                    .fill(viewModel.connectionStateColor)
+                    .frame(width: 12, height: 12)
+                Text(viewModel.connectionStateText)
+                Spacer()
+                Text(viewModel.lastActivityText)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            HStack {
+                Text("Session:")
+                Image(systemName: viewModel.sessionConfigured ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(viewModel.sessionConfigured ? .green : .gray)
+                Text(viewModel.sessionConfigured ? "Configured" : "Not Configured")
+            }
+            
+            HStack {
+                Text("Audio:")
+                Image(systemName: viewModel.isAudioStreaming ? "waveform.circle.fill" : "waveform.circle")
+                    .foregroundColor(viewModel.isAudioStreaming ? .blue : .gray)
+                Text(viewModel.isAudioStreaming ? "Streaming" : "Not Streaming")
+            }
+
+            HStack {
+                Text("Gerald:")
+                Image(systemName: viewModel.isGeraldSpeaking ? "speaker.wave.3.fill" : "speaker.slash.fill")
+                    .foregroundColor(viewModel.isGeraldSpeaking ? .green : .gray)
+                Text(viewModel.isGeraldSpeaking ? "Speaking" : "Silent")
+            }
+            
+            VStack(spacing: 10) {
+                Button(action: viewModel.connect) {
+                    Text(viewModel.isConnecting ? "Connecting..." : "Connect")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!viewModel.canConnect || viewModel.isConnecting)
+                
+                Button(action: viewModel.disconnect) {
+                    Text("Disconnect")
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.connectionState == .disconnected)
+                
+                Button(action: viewModel.clearLog) {
+                    Text("Clear Log")
+                }
+                .buttonStyle(.bordered)
+                
+                Button(action: viewModel.sendTestAudio) {
+                    Text("Send Test Audio")
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.connectionState != .connected)
+                
+                Button(action: {
+                    if viewModel.isAudioStreaming {
+                        viewModel.stopAudioStreaming()
+                    } else {
+                        viewModel.startAudioStreaming()
+                    }
+                }) {
+                    Text(viewModel.isAudioStreaming ? "Stop Streaming" : "Start Streaming")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.connectionState != .connected)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+
+struct MessageLogView: View {
+    @ObservedObject var viewModel: VoiceTestViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Message Log")
+                    .font(.headline)
+                Spacer()
+                Text("\(viewModel.messageLog.count) messages")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            ScrollViewReader { scrollView in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(viewModel.messageLog) { message in
+                            MessageRow(message: message)
+                                .id(message.id)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                }
+                .frame(height: 300)
+                .background(Color.black.opacity(0.05))
+                .cornerRadius(8)
+                .onChange(of: viewModel.messageLog.count) { _ in
+                    if let lastMessage = viewModel.messageLog.last {
+                        scrollView.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.green.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+
+struct ToolConfirmationOverlay: View {
+    @ObservedObject var viewModel: VoiceTestViewModel
+    
+    var body: some View {
+        Group {
+            if let toolCall = viewModel.pendingToolCall {
+                ZStack {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 20) {
+                        Text("Preview Action")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(toolCall.previewTitle)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                            
+                            Text(toolCall.previewContent)
+                                .font(.body)
+                                .padding()
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        
+                        HStack(spacing: 20) {
+                            Button("Cancel") {
+                                viewModel.rejectToolCall()
+                            }
+                            .buttonStyle(.bordered)
+                            .foregroundColor(.red)
+                            
+                            Button("Approve") {
+                                viewModel.approveToolCall()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(16)
+                    .shadow(radius: 10)
+                    .padding(.horizontal, 40)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Supporting Views and Models
 
 struct MessageRow: View {
     let message: DebugMessage
@@ -265,6 +342,20 @@ enum MessageDirection {
     case sent, received, system
 }
 
+enum ConnectionState {
+    case disconnected, connecting, connected, error
+}
+
+struct PendingToolCall {
+    let id: String
+    let functionName: String
+    let arguments: String
+    let previewTitle: String
+    let previewContent: String
+}
+
+// MARK: - ViewModel
+
 class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
     // Permissions
     @Published var micPermissionGranted = false
@@ -281,13 +372,16 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
     // Audio streaming
     @Published var isGeraldSpeaking = false
     @Published var messageLog: [DebugMessage] = []
-
-
-    // Audio playback properties removed (audioQueue, currentAudioPlayer)
+    
+    // Scenario Configuration
+    @Published var scenarioTopic: String = "Grok bug"
+    
+    // Tool Confirmation
+    @Published var pendingToolCall: PendingToolCall?
 
 
     // XAI Service
-    private var xaiService: XAIVoiceService?
+    internal var xaiService: XAIVoiceService?
     
     // Audio Streamer
     private var audioStreamer: AudioStreamer!
@@ -373,17 +467,14 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
         connectionState = .connecting
         sessionConfigured = false
 
-        logMessage(.system, .system, "Starting XAI connection", "")
+        logMessage(.system, .system, "Starting CEO Demo connection", "")
 
         // Initialize XAI service
-        xaiService = XAIVoiceService(apiKey: "xai-6ab6MBdEeM26TVCX17g11UGQDT34sA0b5CBff0f9leY23WXzUeQWugxZB0ukgolPllZkXKVsD6VPd8lQ")
+        xaiService = XAIVoiceService(apiKey: Config.xAiApiKey)
+        
+        // Tool Orchestrator
+        let toolOrchestrator = XToolOrchestrator()
 
-        // Initialize audio streamer
-        // setupAudioSessionForPlayback is called internally by AudioStreamer
-        
-        // Setup audio session for playback/recording
-        // setupAudioSessionForPlayback() - REMOVED (AudioStreamer handles this)
-        
         // Set up callbacks
         xaiService?.onConnected = { [weak self] in
             DispatchQueue.main.async {
@@ -408,17 +499,76 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
             }
         }
 
-
         // Start connection
         Task {
             do {
+                await MainActor.run {
+                    self.logMessage(.system, .system, "Searching X for '\(self.scenarioTopic)'...", "")
+                }
+                
+                let searchResult = await toolOrchestrator.executeTool(.searchRecentTweets, parameters: ["query": self.scenarioTopic, "max_results": 10])
+                
+                var contextString = ""
+                // XToolCallResult is a struct, handle success/failure manually
+                if searchResult.success {
+                     contextString = searchResult.response ?? "No tweets found."
+                     await MainActor.run {
+                         self.logMessage(.system, .system, "Found relevant tweets", "")
+                     }
+                } else {
+                    contextString = "Error fetching tweets: \(searchResult.error?.message ?? "Unknown error")"
+                    await MainActor.run {
+                        self.logMessage(.error, .system, "Tweet pre-fetch failed", searchResult.error?.message ?? "Unknown error")
+                    }
+                }
+
+                // 2. Connect
                 try await xaiService!.connect()
 
-                // Configure session with Gerald McGrokMode personality
-                try xaiService!.configureSantaSession()
+                // 3. Configure Session with Tools and Context
+                let tools = XToolIntegration.getToolDefinitions()
+                try xaiService!.configureSession(tools: tools)
+                
+                // Send the context as a user message
+                let contextMessage = VoiceMessage(
+                   type: "conversation.item.create",
+                   audio: nil,
+                   text: nil,
+                   delta: nil,
+                   session: nil,
+                   item: VoiceMessage.ConversationItem(
+                       id: nil,
+                       object: nil,
+                       type: "message",
+                       status: nil,
+                       role: "user",
+                       content: [VoiceMessage.ContentItem(
+                           type: "input_text",
+                           text: "SYSTEM CONTEXT: You have just searched for '\(self.scenarioTopic)' and found these recent tweets: \(contextString). Use this context for the morning brief.",
+                           transcript: nil
+                       )]
+                   ),
+                   tools: nil,
+                   tool_call_id: nil,
+                   event_id: nil,
+                   previous_item_id: nil,
+                   response_id: nil,
+                   output_index: nil,
+                   item_id: nil,
+                   content_index: nil,
+                   audio_start_ms: nil,
+                   start_time: nil,
+                   timestamp: nil,
+                   part: nil,
+                   response: nil,
+                   conversation: nil
+               )
+               try xaiService!.sendMessage(contextMessage)
+               
+                // 4. Send Demo Greeting
 
                 await MainActor.run {
-                    logMessage(.system, .system, "Session configured for Gerald McGrokMode", "")
+                    logMessage(.system, .system, "Session ready for CEO Demo", "")
                 }
 
             } catch {
@@ -515,9 +665,34 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
                 title = "Response Started"
                 details = "Gerald is speaking"
 
+            case "response.function_call_arguments.done": // OpenAI Realtime format for tool calls
+                 title = "Function Args Done"
+                 details = "Arguments parsed"
+                
+            case "response.output_item.added":
+               title = "Output Item Added"
+               details = "Processing new item"
+               if let item = message.item, let toolCalls = item.tool_calls {
+                   for toolCall in toolCalls {
+                       self.handleToolCall(toolCall)
+                   }
+                   details = "Tool calls handled: \(toolCalls.count)"
+               }
+
             case "response.done":
                 title = "Response Complete"
-                details = "Gerald finished speaking"
+                details = "Turn finished"
+                
+                // Check for tool calls in the completed response
+                if let output = message.response?.output {
+                    for item in output {
+                        if let toolCalls = item.tool_calls {
+                            for toolCall in toolCalls {
+                                self.handleToolCall(toolCall)
+                            }
+                        }
+                    }
+                }
 
             case "input_audio_buffer.speech_started":
                 title = "Speech Detected"
@@ -588,9 +763,7 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
         }
     }
 
-
-
-    private func logMessage(_ type: MessageType, _ direction: MessageDirection, _ title: String, _ details: String) {
+    internal func logMessage(_ type: MessageType, _ direction: MessageDirection, _ title: String, _ details: String) {
         let message = DebugMessage(
             timestamp: Date(),
             type: type,
@@ -611,15 +784,142 @@ class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
     }
 }
 
-enum ConnectionState {
-    case disconnected, connecting, connected, error
-}
+// MARK: - ViewModel Extensions for Tools
 
-// MARK: - Extensions
+extension VoiceTestViewModel {
+    func handleToolCall(_ toolCall: VoiceMessage.ToolCall) {
+        logMessage(.system, .received, "Tool Call", "\(toolCall.function.name)")
+        
+        let functionName = toolCall.function.name
+        let arguments = toolCall.function.arguments
+        
+        if functionName == "create_tweet" {
+            // Parse arguments for preview
+            let previewTitle = "Post Tweet?"
+            let previewContent = arguments
+            
+            self.pendingToolCall = PendingToolCall(
+                id: toolCall.id,
+                functionName: functionName,
+                arguments: arguments,
+                previewTitle: previewTitle,
+                previewContent: previewContent
+            )
+        } else if functionName == "search_recent_tweets" {
+             // Automate read-only tools
+             executeTool(toolCall)
+        } else if functionName == "create_linear_ticket" {
+             self.pendingToolCall = PendingToolCall(
+                id: toolCall.id,
+                functionName: functionName,
+                arguments: arguments,
+                previewTitle: "Create Linear Ticket?",
+                previewContent: arguments
+            )
+        } else {
+            // Default execute
+            executeTool(toolCall)
+        }
+    }
+    
+    func approveToolCall() {
+        guard let toolCall = pendingToolCall else { return }
+        pendingToolCall = nil
+        
+        // Execute
+        let voiceToolCall = VoiceMessage.ToolCall(id: toolCall.id, type: "function", function: VoiceMessage.FunctionCall(name: toolCall.functionName, arguments: toolCall.arguments))
+        executeTool(voiceToolCall)
+    }
+    
+    func rejectToolCall() {
+        guard let toolCall = pendingToolCall else { return }
+        
+        // Send rejection output
+        sendToolOutput(toolCallId: toolCall.id, output: "User denied this action.")
+        pendingToolCall = nil
+    }
+    
+    private func executeTool(_ toolCall: VoiceMessage.ToolCall) {
+        Task {
+            logMessage(.system, .system, "Executing Tool", toolCall.function.name)
+            
+            var output = ""
+            
+            if toolCall.function.name == "create_linear_ticket" {
+                output = "{ \"status\": \"success\", \"ticket_id\": \"LIN-1234\", \"url\": \"https://linear.app/grok/issue/LIN-1234\" }"
+            } else if let tool = XTool(rawValue: toolCall.function.name) {
+                // Parse args
+                if let data = toolCall.function.arguments.data(using: .utf8),
+                   let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    
+                    let orchestrator = XToolOrchestrator()
+                    let result = await orchestrator.executeTool(tool, parameters: params)
+                    
+                    if result.success {
+                        output = result.response ?? "{}"
+                    } else {
+                        output = "{ \"error\": \"\(result.error?.message ?? "Unknown Error")\" }"
+                    }
+                } else {
+                    output = "{ \"error\": \"Invalid arguments\" }"
+                }
+            } else {
+                output = "{ \"error\": \"Unknown tool\" }"
+            }
+            
+            sendToolOutput(toolCallId: toolCall.id, output: output)
+        }
+    }
+    
+    private func sendToolOutput(toolCallId: String, output: String) {
+        let message = VoiceMessage(
+            type: "conversation.item.create",
+            audio: nil,
+            text: nil,
+            delta: nil,
+            session: nil,
+            item: VoiceMessage.ConversationItem(
+                id: nil,
+                object: nil,
+                type: "function_call_output",
+                status: nil,
+                role: "system", // or tool?
+                content: [VoiceMessage.ContentItem(
+                    type: "function_call_output", // Check API spec
+                    text: nil,
+                    transcript: nil,
+                    tool_call_id: toolCallId,
+                    output: output
+                )]
+            ),
+            tools: nil,
+            tool_call_id: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
+        )
+        
+        do {
+            try xaiService?.sendMessage(message)
+            try xaiService?.createResponse()
+            logMessage(.system, .sent, "Tool Output Sent", "\(output.count) chars")
+        } catch {
+            logMessage(.error, .system, "Failed to send tool output", error.localizedDescription)
+        }
+    }
+}
 
 extension FixedWidthInteger {
     var littleEndianBytes: [UInt8] {
         withUnsafeBytes(of: self.littleEndian) { Array($0) }
     }
 }
-

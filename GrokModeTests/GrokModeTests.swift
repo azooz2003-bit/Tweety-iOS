@@ -11,7 +11,7 @@ import Foundation
 
 struct GrokModeTests {
     // XAI API Key for testing
-    private let apiKey = "xai-6ab6MBdEeM26TVCX17g11UGQDT34sA0b5CBff0f9leY23WXzUeQWugxZB0ukgolPllZkXKVsD6VPd8lQ"
+    private let apiKey = Config.xAiApiKey
 
     @Test("Test ephemeral token acquisition from XAI API")
     func testGetEphemeralToken() async throws {

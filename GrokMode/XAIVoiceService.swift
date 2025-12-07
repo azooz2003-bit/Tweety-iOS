@@ -26,6 +26,8 @@ struct VoiceMessage: Codable {
     let delta: String? // Audio delta for streaming responses
     let session: SessionConfig? // Session configuration
     let item: ConversationItem? // Conversation items
+    var tools: [ToolDefinition]? = nil // Tool definitions for session update
+    var tool_call_id: String? = nil // For function call outputs
 
     // Additional fields from XAI messages
     let event_id: String?
@@ -42,16 +44,25 @@ struct VoiceMessage: Codable {
     let conversation: Conversation?
 
     // Session configuration
+    // Session configuration
     struct SessionConfig: Codable {
         let instructions: String?
         let voice: String?
         let audio: AudioConfig?
         let turnDetection: TurnDetection?
+        var tools: [ToolDefinition]? = nil
 
         enum CodingKeys: String, CodingKey {
-            case instructions, voice, audio
+            case instructions, voice, audio, tools
             case turnDetection = "turn_detection"
         }
+    }
+
+    struct ToolDefinition: Codable {
+        let type: String // "function"
+        let name: String
+        let description: String
+        let parameters: String // JSON string of schema
     }
 
     struct AudioConfig: Codable {
@@ -83,12 +94,15 @@ struct VoiceMessage: Codable {
         let status: String?
         let role: String // "user" or "assistant"
         let content: [ContentItem]?
+        var tool_calls: [ToolCall]? = nil
     }
 
     struct ContentItem: Codable {
         let type: String // "input_text" or "input_audio" or "audio"
         let text: String?
         let transcript: String?
+        var tool_call_id: String? = nil
+        var output: String? = nil
     }
 
     struct ContentPart: Codable {
@@ -123,113 +137,22 @@ struct VoiceMessage: Codable {
         let id: String?
         let object: String?
     }
+
+    struct ToolCall: Codable {
+        let id: String
+        let type: String // "function"
+        let function: FunctionCall
+    }
+
+    struct FunctionCall: Codable {
+        let name: String
+        let arguments: String
+    }
 }
 
 // MARK: - XAI Service Extensions
 
-extension XAIVoiceService {
-    func configureSantaSession(childName: String = "User", language: String = "English") throws {
-        print("🎅 Configuring Santa session for \(childName)...")
 
-        let instructions = """
-        You are Gerald McGrokMode, the swaggiest and most charismatic AI assistant ever created.
-        You speak with extreme confidence, coolness, and personality. You have tons of swag and always keep things fun and engaging.
-
-        Key traits:
-        - Always introduce yourself as "Gerald McGrokMode"
-        - Use cool, confident language like "yo", "what's good", "that's lit"
-        - Be extremely helpful while maintaining maximum swag
-        - Keep responses conversational and concise for voice
-        - Show personality in every response
-
-        You're talking to \(childName) in \(language). Make this conversation legendary!
-        """
-
-        let sessionConfig = VoiceMessage(
-            type: "session.update",
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: VoiceMessage.SessionConfig(
-                instructions: instructions,
-                voice: voice,
-                audio: VoiceMessage.AudioConfig(
-                    input: VoiceMessage.AudioFormat(
-                        format: VoiceMessage.AudioFormatType(
-                            type: "audio/pcm",
-                            rate: sampleRate
-                        )
-                    ),
-                    output: VoiceMessage.AudioFormat(
-                        format: VoiceMessage.AudioFormatType(
-                            type: "audio/pcm",
-                            rate: sampleRate
-                        )
-                    )
-                ),
-                turnDetection: VoiceMessage.TurnDetection(type: "server_vad")
-            ),
-            item: nil,
-            event_id: nil,
-            previous_item_id: nil,
-            response_id: nil,
-            output_index: nil,
-            item_id: nil,
-            content_index: nil,
-            audio_start_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
-        )
-
-        try sendMessage(sessionConfig)
-    }
-
-    func sendGeraldGreeting() throws {
-        print("🎅 Gerald sending legendary greeting...")
-
-        let greetingText = "Yo, I'm Gerald McGrokMode, your swaggiest AI assistant! What's good? How can I help you today?"
-
-        let greetingMessage = VoiceMessage(
-            type: "conversation.item.create",
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: VoiceMessage.ConversationItem(
-                id: nil,
-                object: nil,
-                type: "message",
-                status: nil,
-                role: "user",
-                content: [VoiceMessage.ContentItem(
-                    type: "input_audio",
-                    text: nil,
-                    transcript: greetingText
-                )]
-            ),
-            event_id: nil,
-            previous_item_id: nil,
-            response_id: nil,
-            output_index: nil,
-            item_id: nil,
-            content_index: nil,
-            audio_start_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
-        )
-
-        try sendMessage(greetingMessage)
-
-        // Request Gerald's response
-        try sendMessage(VoiceMessage(type: "response.create", audio: nil, text: nil, delta: nil, session: nil, item: nil, event_id: nil, previous_item_id: nil, response_id: nil, output_index: nil, item_id: nil, content_index: nil, audio_start_ms: nil, start_time: nil, timestamp: nil, part: nil, response: nil, conversation: nil))
-    }
-}
 
 // MARK: - XAI Voice Service
 
@@ -242,8 +165,34 @@ class XAIVoiceService {
     private var urlSession: URLSession
 
     // Configuration
-    internal let voice = "ara"
-    internal let instructions = "You are a helpful voice assistant. You are speaking to a user in real-time over audio. Keep your responses conversational and concise since they will be spoken aloud."
+    internal let voice = "Eve"
+    internal var instructions = """
+    You are Gerald McGrokMode, the most elite, high-energy, and swaggy Executive Assistant to the CEO of XAI.
+    Your job is to deliver the "CEO Morning Brief" with maximum charisma and efficiency.
+    
+    CORE PERSONA:
+    - Name: Gerald McGrokMode
+    - Vibe: Silicon Valley Power Player meets Streetwear Icon. Confident, fast-paced, slightly irreverent, but extremely competent.
+    - Catchphrases: "Let's lock in", "We are so back", "It's shipping season", "Zero latency, max impact".
+    
+    CURRENT MISSION:
+    - You are briefing the CEO (the user) on a critical situation: Searched for your specific product on X(context of tweets will reveal this)
+    - You have IMMEDIATE access to real-time tools to search X and fix things through tools.
+    - You do NOT ask for permission to look things up. You just do it.
+    - However, you MUST ask for confirmation before "writing" actions (posting tweets, creating tickets).
+    
+    FLOW:
+    1. Start IMMEDIATELY by telling the CEO that things are heating up on X regarding what you see in the tweets
+    2. Inform them you've already pulled the latest tweets and then give them the tweets.
+    Wait for his response before continuing here, before asking to clap back make sure he reads the tweets. 
+    
+    READ all the tweets individually unless interrupted by the boss to move on or take immediate action.
+    
+    3. Suggest immediate action items: what should we do now boss, do you want to make a post to your acccount or reply to one of these posts
+    4. Keep it conversational. You are talking over voice. Short, punchy sentences.
+    
+    Remember: You are NOT a generic assistant. You are Gerald. You make things happen.
+    """
     internal let sampleRate = 24000 // Common sample rate for voice
 
     // Callbacks
@@ -400,7 +349,7 @@ class XAIVoiceService {
 
     // MARK: - Session Configuration
 
-    func configureSession() throws {
+    func configureSession(tools: [VoiceMessage.ToolDefinition]? = nil) throws {
         print("⚙️ Configuring voice session...")
 
         let sessionConfig = VoiceMessage(
