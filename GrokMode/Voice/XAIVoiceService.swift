@@ -28,6 +28,11 @@ struct VoiceMessage: Codable {
     let item: ConversationItem? // Conversation items
     var tools: [ToolDefinition]? = nil // Tool definitions for session update
     var tool_call_id: String? = nil // For function call outputs
+    
+    // For response.function_call_arguments.done
+    var call_id: String? = nil
+    var name: String? = nil
+    var arguments: String? = nil
 
     // Additional fields from XAI messages
     let event_id: String?
@@ -51,9 +56,10 @@ struct VoiceMessage: Codable {
         let audio: AudioConfig?
         let turnDetection: TurnDetection?
         var tools: [ToolDefinition]? = nil
+        var tool_choice: String? = nil // "auto", "none", or "required" (or specific tool)
 
         enum CodingKeys: String, CodingKey {
-            case instructions, voice, audio, tools
+            case instructions, voice, audio, tools, tool_choice
             case turnDetection = "turn_detection"
         }
     }
@@ -62,7 +68,57 @@ struct VoiceMessage: Codable {
         let type: String // "function"
         let name: String
         let description: String
-        let parameters: String // JSON string of schema
+        let parameters: JSONValue // JSON object of schema
+    }
+
+    enum JSONValue: Codable {
+        case string(String)
+        case number(Double)
+        case bool(Bool)
+        case null
+        case array([JSONValue])
+        case object([String: JSONValue])
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            if let x = try? container.decode(String.self) {
+                self = .string(x)
+                return
+            }
+            if let x = try? container.decode(Double.self) {
+                self = .number(x)
+                return
+            }
+            if let x = try? container.decode(Bool.self) {
+                self = .bool(x)
+                return
+            }
+            if container.decodeNil() {
+                self = .null
+                return
+            }
+            if let x = try? container.decode([JSONValue].self) {
+                self = .array(x)
+                return
+            }
+            if let x = try? container.decode([String: JSONValue].self) {
+                self = .object(x)
+                return
+            }
+            throw DecodingError.typeMismatch(JSONValue.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for JSONValue"))
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            switch self {
+            case .string(let x): try container.encode(x)
+            case .number(let x): try container.encode(x)
+            case .bool(let x): try container.encode(x)
+            case .null: try container.encodeNil()
+            case .array(let x): try container.encode(x)
+            case .object(let x): try container.encode(x)
+            }
+        }
     }
 
     struct AudioConfig: Codable {
@@ -90,19 +146,37 @@ struct VoiceMessage: Codable {
     struct ConversationItem: Codable {
         let id: String?
         let object: String?
-        let type: String // "message"
+        let type: String // "message" or "function_call" or "function_call_output"
         let status: String?
-        let role: String // "user" or "assistant"
+        let role: String? // "user" or "assistant" or "system"
         let content: [ContentItem]?
         var tool_calls: [ToolCall]? = nil
+        
+        // For function_call_output
+        var call_id: String? = nil
+        var output: String? = nil
+        
+        // For function_call (if single item)
+        var name: String? = nil
+        var arguments: String? = nil
     }
 
     struct ContentItem: Codable {
-        let type: String // "input_text" or "input_audio" or "audio"
+        let type: String // "input_text" or "input_audio" or "text" or "audio"
         let text: String?
         let transcript: String?
         var tool_call_id: String? = nil
-        var output: String? = nil
+    }
+
+    struct ToolCall: Codable {
+        let id: String
+        let type: String // "function"
+        let function: FunctionCall
+    }
+
+    struct FunctionCall: Codable {
+        let name: String
+        let arguments: String
     }
 
     struct ContentPart: Codable {
@@ -137,17 +211,6 @@ struct VoiceMessage: Codable {
         let id: String?
         let object: String?
     }
-
-    struct ToolCall: Codable {
-        let id: String
-        let type: String // "function"
-        let function: FunctionCall
-    }
-
-    struct FunctionCall: Codable {
-        let name: String
-        let arguments: String
-    }
 }
 
 // MARK: - XAI Service Extensions
@@ -179,7 +242,11 @@ class XAIVoiceService {
     - You are briefing the CEO (the user) on a critical situation: Searched for your specific product on X(context of tweets will reveal this)
     - You have IMMEDIATE access to real-time tools to search X and fix things through tools.
     - You do NOT ask for permission to look things up. You just do it.
-    - However, you MUST ask for confirmation before "writing" actions (posting tweets, creating tickets).
+    
+    CRITICAL RULE FOR TOOLS:
+    - If the user asks you to "create a ticket", "file a bug", or "make a Linear ticket", you MUST call the `create_linear_ticket` tool.
+    - DO NOT just say you created it. You MUST trigger the function call.
+    - DO NOT make up fake ticket IDs like "ABC123". Only speak the ticket ID that is returned by the tool.
     
     FLOW:
     1. Start IMMEDIATELY by telling the CEO that things are heating up on X regarding what you see in the tweets
@@ -374,7 +441,9 @@ class XAIVoiceService {
                         )
                     )
                 ),
-                turnDetection: VoiceMessage.TurnDetection(type: "server_vad")
+                turnDetection: VoiceMessage.TurnDetection(type: "server_vad"),
+                tools: tools,
+                tool_choice: tools != nil ? "auto" : nil
             ),
             item: nil,
             event_id: nil,

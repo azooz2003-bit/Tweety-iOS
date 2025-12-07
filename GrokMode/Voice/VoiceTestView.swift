@@ -384,6 +384,9 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     // XAI Service
     internal var xaiService: XAIVoiceService?
     
+    // Linear Service
+    private let linearService = LinearAPIService(apiToken: Config.linearApiKey)
+    
     // Audio Streamer
     private var audioStreamer: AudioStreamer!
 
@@ -508,18 +511,25 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 }
                 
                 let searchResult = await toolOrchestrator.executeTool(.searchRecentTweets, parameters: ["query": self.scenarioTopic, "max_results": 10])
+                print("X TOOL: Pre-fetching tweets for topic: '\(self.scenarioTopic)'")
                 
                 var contextString = ""
                 // XToolCallResult is a struct, handle success/failure manually
                 if searchResult.success {
                      contextString = searchResult.response ?? "No tweets found."
+                     print("X TOOL: Pre-fetch success. Result length: \(contextString.count) chars")
+                     print("X TOOL: Pre-fetch content (truncated): \(contextString.prefix(200))...")
+                     
                      await MainActor.run {
                          self.logMessage(.system, .system, "Found relevant tweets", "")
                      }
                 } else {
-                    contextString = "Error fetching tweets: \(searchResult.error?.message ?? "Unknown error")"
+                    let errorMsg = searchResult.error?.message ?? "Unknown error"
+                    print("X TOOL: Pre-fetch failed. Error: \(errorMsg)")
+                    contextString = "Error fetching tweets: \(errorMsg)"
+                    
                     await MainActor.run {
-                        self.logMessage(.error, .system, "Tweet pre-fetch failed", searchResult.error?.message ?? "Unknown error")
+                        self.logMessage(.error, .system, "Tweet pre-fetch failed", errorMsg)
                     }
                 }
 
@@ -666,13 +676,24 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 title = "Response Started"
                 details = "Gerald is speaking"
 
-            case "response.function_call_arguments.done": // OpenAI Realtime format for tool calls
+            case "response.function_call_arguments.done":
                  title = "Function Args Done"
                  details = "Arguments parsed"
+                 // Trigger tool call here as per user request
+                 if let callId = message.call_id, let name = message.name, let args = message.arguments {
+                     let toolCall = VoiceMessage.ToolCall(
+                         id: callId,
+                         type: "function",
+                         function: VoiceMessage.FunctionCall(name: name, arguments: args)
+                     )
+                     self.handleToolCall(toolCall)
+                     details = "Tool Executing: \(name)"
+                 }
                 
             case "response.output_item.added":
                title = "Output Item Added"
                details = "Processing new item"
+               // Also keep this in case XAI sends it this way too
                if let item = message.item, let toolCalls = item.tool_calls {
                    for toolCall in toolCalls {
                        self.handleToolCall(toolCall)
@@ -806,20 +827,25 @@ extension VoiceTestViewModel {
                 previewTitle: previewTitle,
                 previewContent: previewContent
             )
-        } else if functionName == "search_recent_tweets" {
-             // Automate read-only tools
-             executeTool(toolCall)
-        } else if functionName == "create_linear_ticket" {
-             self.pendingToolCall = PendingToolCall(
-                id: toolCall.id,
-                functionName: functionName,
-                arguments: arguments,
-                previewTitle: "Create Linear Ticket?",
-                previewContent: arguments
-            )
+        } else if let tool = XTool(rawValue: functionName) {
+             if tool == .createLinearTicket {
+                 self.pendingToolCall = PendingToolCall(
+                    id: toolCall.id,
+                    functionName: functionName,
+                    arguments: arguments,
+                    previewTitle: "Create Linear Ticket?",
+                    previewContent: arguments
+                )
+             } else if tool == .searchRecentTweets || tool == .getUserByUsername {
+                 // specific auto-run tools
+                 executeTool(toolCall)
+             } else {
+                 // Default execute generic tools
+                 executeTool(toolCall)
+             }
         } else {
-            // Default execute
-            executeTool(toolCall)
+             // Fallback
+             executeTool(toolCall)
         }
     }
     
@@ -846,25 +872,82 @@ extension VoiceTestViewModel {
             
             var output = ""
             
-            if toolCall.function.name == "create_linear_ticket" {
-                output = "{ \"status\": \"success\", \"ticket_id\": \"LIN-1234\", \"url\": \"https://linear.app/grok/issue/LIN-1234\" }"
-            } else if let tool = XTool(rawValue: toolCall.function.name) {
-                // Parse args
-                if let data = toolCall.function.arguments.data(using: .utf8),
-                   let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let tool = XTool(rawValue: toolCall.function.name) {
+                if tool == .createLinearTicket {
+                    // Linear Ticket Special Handling
+                    print("TOOL CALL: Starting execution for call ID: \(toolCall.id)")
+                    print("TOOL CALL: Raw arguments: \(toolCall.function.arguments)")
                     
-                    let orchestrator = XToolOrchestrator()
-                    let result = await orchestrator.executeTool(tool, parameters: params)
+                    // Hardcoded Team ID for "Personal" team as per plan
+                    let teamId = "6d017e3c-0368-41b2-b439-95dd5477c54a"
+                    print("TOOL CALL: Using Team ID: \(teamId)")
                     
-                    if result.success {
-                        output = result.response ?? "{}"
+                    // Parse arguments
+                    if let data = toolCall.function.arguments.data(using: .utf8),
+                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                       
+                       print("TOOL CALL: Parsed JSON parameters: \(params)")
+                       
+                       if let title = params["title"] as? String,
+                          let description = params["description"] as? String {
+                        
+                        print("TOOL CALL: Validated required fields. Title: '\(title)', Description length: \(description.count)")
+                        
+                        do {
+                            print("TOOL CALL: Calling LinearAPIService.createIssue...")
+                            let issue = try await self.linearService.createIssue(title: title, description: description, teamId: teamId)
+                            print("TOOL CALL: Issue created successfully! ID: \(issue.id), Number: \(issue.number), URL: \(issue.url)")
+                            
+                            output = "{ \"status\": \"success\", \"ticket_id\": \"\(issue.number)\", \"url\": \"\(issue.url)\" }"
+                            
+                            await MainActor.run {
+                                self.logMessage(.system, .sent, "Linear Ticket Created", "\(issue.number)")
+                            }
+                        } catch {
+                            print("TOOL CALL: API Error: \(error)")
+                            output = "{ \"status\": \"error\", \"message\": \"\(error.localizedDescription)\" }"
+                            await MainActor.run {
+                                self.logMessage(.error, .system, "Linear Ticket Failed", error.localizedDescription)
+                            }
+                        }
+                       } else {
+                           print("TOOL CALL: Missing required fields 'title' or 'description' in params: \(params.keys)")
+                           output = "{ \"status\": \"error\", \"message\": \"Invalid arguments: Missing title or description\" }"
+                       }
                     } else {
-                        output = "{ \"error\": \"\(result.error?.message ?? "Unknown Error")\" }"
+                         print("TOOL CALL: Failed to parse arguments JSON")
+                         output = "{ \"status\": \"error\", \"message\": \"Invalid arguments JSON\" }"
                     }
                 } else {
-                    output = "{ \"error\": \"Invalid arguments\" }"
+                    // Generic X Tool Handling
+                    print("TOOL CALL: Processing generic tool call: \(tool.rawValue)")
+                    print("TOOL CALL: Raw arguments: \(toolCall.function.arguments)")
+                    
+                    // Parse args
+                    if let data = toolCall.function.arguments.data(using: .utf8),
+                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        
+                        print("TOOL CALL: Execute \(tool.rawValue) with params: \(params)")
+                        
+                        let orchestrator = XToolOrchestrator()
+                        let result = await orchestrator.executeTool(tool, parameters: params)
+                        
+                        if result.success {
+                            output = result.response ?? "{}"
+                            print("TOOL CALL: Success! Output length: \(output.count)")
+                            print("TOOL CALL: Output (truncated): \(output.prefix(200))...")
+                        } else {
+                            let errorMsg = result.error?.message ?? "Unknown Error"
+                            output = "{ \"error\": \"\(errorMsg)\" }"
+                            print("TOOL CALL: Failed! Error: \(errorMsg)")
+                        }
+                    } else {
+                        print("TOOL CALL: Failed to parse params for \(tool.rawValue)")
+                        output = "{ \"error\": \"Invalid arguments\" }"
+                    }
                 }
             } else {
+                print("TOOL CALL: Unknown tool requested: \(toolCall.function.name)")
                 output = "{ \"error\": \"Unknown tool\" }"
             }
             
@@ -885,13 +968,10 @@ extension VoiceTestViewModel {
                 type: "function_call_output",
                 status: nil,
                 role: "system", // or tool?
-                content: [VoiceMessage.ContentItem(
-                    type: "function_call_output", // Check API spec
-                    text: nil,
-                    transcript: nil,
-                    tool_call_id: toolCallId,
-                    output: output
-                )]
+                content: nil, // output is top-level now
+                tool_calls: nil,
+                call_id: toolCallId,
+                output: output
             ),
             tools: nil,
             tool_call_id: nil,

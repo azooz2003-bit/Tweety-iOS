@@ -21,5 +21,12 @@ enum Config {
         }
         return apiKey
     }()
+    
+    static let linearApiKey = {
+        guard let apiKey = Bundle.main.infoDictionary?["LINEAR_API_KEY"] as? String else {
+            fatalError()
+        }
+        return apiKey
+    }()
     static let baseXURL = "https://api.x.com"
 }

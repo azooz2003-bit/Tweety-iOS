@@ -105,6 +105,11 @@ class XToolOrchestrator {
 
         switch tool {
         // MARK: - Posts/Tweets
+            
+        case .createLinearTicket:
+             // This tool is handled via LinearAPIService, not the X API orchestrator.
+             // Throwing an error here ensures we don't accidentally try to send Linear requests to X.
+             throw XToolCallError(code: "INVALID_TOOL_HANDLER", message: "create_linear_ticket should be handled by LinearAPIService")
         case .createTweet:
             path = "/2/tweets"
             method = .post
@@ -591,6 +596,10 @@ class XToolOrchestrator {
             }
             path = "/2/media/\(mediaKey)"
             method = .get
+            
+        case .createLinearTicket:
+             // This tool is handled via LinearAPIService, not the X API orchestrator.
+             throw XToolCallError(code: "INVALID_TOOL_HANDLER", message: "create_linear_ticket should be handled by LinearAPIService")
         }
 
         // Build URL
