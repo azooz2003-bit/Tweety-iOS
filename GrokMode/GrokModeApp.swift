@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import Authentication
 
 @main
 struct GrokModeApp: App {
+    @State var authViewModel = AuthViewModel()
+
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(authViewModel: authViewModel)
         }
     }
 }

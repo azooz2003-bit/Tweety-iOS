@@ -8,22 +8,30 @@
 import SwiftUI
 
 struct RootView: View {
-    @State private var authService = XAuthService()
+    @Bindable var authViewModel: AuthViewModel
 
     var body: some View {
         Group {
-            if authService.isAuthenticated {
-                VoiceAssistantView(autoConnect: true, authService: authService)
+            if authViewModel.isAuthenticated {
+                VoiceAssistantView(autoConnect: true, authViewModel: authViewModel)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
-                LoginView(authService: authService)
+                LoginView(authViewModel: authViewModel)
                     .transition(.opacity.combined(with: .scale(scale: 1.05)))
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+        .animation(.easeInOut(duration: 0.3), value: authViewModel.isAuthenticated)
+        .task {
+            await authViewModel.startObserving()
+        }
     }
 }
 
 #Preview {
-    RootView()
+    @Previewable @State var authViewModel = AuthViewModel()
+
+    RootView(authViewModel: authViewModel)
+        .task {
+            await authViewModel.startObserving()
+        }
 }

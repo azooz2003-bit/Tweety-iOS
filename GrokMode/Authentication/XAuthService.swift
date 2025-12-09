@@ -18,7 +18,7 @@ final class AuthPresentationProvider: NSObject, ASWebAuthenticationPresentationC
 }
 
 // MARK: - Auth Error
-public enum AuthError: Error, Sendable {
+enum AuthError: Error, Sendable {
     // Configuration/Programming errors
     case missingClientID
     case invalidURL
@@ -30,7 +30,8 @@ public enum AuthError: Error, Sendable {
 }
 
 // MARK: - Auth State
-public struct AuthState: Sendable {
+nonisolated
+struct AuthState: Sendable {
     public let isAuthenticated: Bool
     public let currentUserHandle: String?
 
@@ -66,6 +67,7 @@ public actor XAuthService {
     }
 
     // Storage
+    private let keychain = KeychainHelper()
     private let tokenKey = "x_user_access_token"
     private let refreshTokenKey = "x_user_refresh_token"
     private let handleKey = "x_user_handle"
@@ -73,32 +75,31 @@ public actor XAuthService {
 
     // AsyncStream for state changes
     private let stateContinuation: AsyncStream<AuthState>.Continuation
-    public let authStateStream: AsyncStream<AuthState>
+    let authStateStream: AsyncStream<AuthState>
 
     // Optional event handlers
-    public var onTokenRefreshed: (() -> Void)?
+    var onTokenRefreshed: (() -> Void)?
 
-    @MainActor
-    public init() {
+    init(authPresentationProvider: AuthPresentationProvider) {
         // Create AsyncStream using makeStream() for Swift 6 concurrency safety
         let (stream, continuation) = AsyncStream<AuthState>.makeStream()
         self.authStateStream = stream
         self.stateContinuation = continuation
-        self.presentationProvider = AuthPresentationProvider()
+        self.presentationProvider = authPresentationProvider
     }
 
-    public func checkStatus() {
-        if let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty {
+    func checkStatus() async {
+        if let token = await keychain.getString(for: tokenKey), !token.isEmpty {
             authState = AuthState(
                 isAuthenticated: true,
-                currentUserHandle: UserDefaults.standard.string(forKey: handleKey)
+                currentUserHandle: await keychain.getString(for: handleKey)
             )
         } else {
             authState = AuthState(isAuthenticated: false, currentUserHandle: nil)
         }
     }
 
-    public func login() async throws {
+    func login() async throws {
         // Programming error - should never happen in production
         guard !clientId.isEmpty else {
             assertionFailure("X_CLIENT_ID not configured in Info.plist")
@@ -227,11 +228,11 @@ public actor XAuthService {
             // Calculate expiry date
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
 
-            // Save Token
-            UserDefaults.standard.set(accessToken, forKey: self.tokenKey)
-            UserDefaults.standard.set(expiryDate, forKey: self.tokenExpiryKey)
+            // Save Token to Keychain
+            try? await keychain.save(accessToken, for: self.tokenKey)
+            try? await keychain.save(expiryDate, for: self.tokenExpiryKey)
             if let rt = refreshToken {
-                UserDefaults.standard.set(rt, forKey: self.refreshTokenKey)
+                try? await keychain.save(rt, for: self.refreshTokenKey)
             }
             authState = AuthState(isAuthenticated: true, currentUserHandle: authState.currentUserHandle)
 
@@ -246,7 +247,7 @@ public actor XAuthService {
 
     private func fetchCurrentUser() async {
         // Non-critical - silently fail if we can't get user info
-        guard let token = UserDefaults.standard.string(forKey: tokenKey) else { return }
+        guard let token = await keychain.getString(for: tokenKey) else { return }
 
         let url = URL(string: "https://api.twitter.com/2/users/me")!
         var request = URLRequest(url: url)
@@ -262,42 +263,42 @@ public actor XAuthService {
             }
 
             let handle = "@\(username)"
-            UserDefaults.standard.set(handle, forKey: self.handleKey)
+            try? await keychain.save(handle, for: self.handleKey)
             authState = AuthState(isAuthenticated: authState.isAuthenticated, currentUserHandle: handle)
         } catch {
             // Silently fail - user info is non-critical
         }
     }
 
-    public func logout() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
-        UserDefaults.standard.removeObject(forKey: refreshTokenKey)
-        UserDefaults.standard.removeObject(forKey: handleKey)
-        UserDefaults.standard.removeObject(forKey: tokenExpiryKey)
+    public func logout() async {
+        await keychain.delete(tokenKey)
+        await keychain.delete(refreshTokenKey)
+        await keychain.delete(handleKey)
+        await keychain.delete(tokenExpiryKey)
         authState = AuthState(isAuthenticated: false, currentUserHandle: nil)
     }
 
-    public func getAccessToken() -> String? {
-        return UserDefaults.standard.string(forKey: tokenKey)
+    public func getAccessToken() async -> String? {
+        return await keychain.getString(for: tokenKey)
     }
 
     /// Get a valid access token, refreshing if necessary
     /// Returns nil if session expired - UI will automatically show login via state stream
     public func getValidAccessToken() async -> String? {
         // Check if token exists
-        guard let token = UserDefaults.standard.string(forKey: tokenKey), !token.isEmpty else {
+        guard let token = await keychain.getString(for: tokenKey), !token.isEmpty else {
             return nil  // Already logged out, state stream will notify UI
         }
 
         // Check if token is expired or about to expire (within 5 minutes)
-        if isTokenExpired() {
+        if await isTokenExpired() {
             // Auto-refresh token
             do {
                 let refreshed = try await refreshAccessToken()
                 return refreshed
             } catch {
                 // Auto-handle: logout and let state stream notify UI
-                self.logout()
+                await self.logout()
                 return nil
             }
         }
@@ -306,8 +307,8 @@ public actor XAuthService {
     }
 
     /// Check if the current token is expired or about to expire
-    private func isTokenExpired() -> Bool {
-        guard let expiryDate = UserDefaults.standard.object(forKey: tokenExpiryKey) as? Date else {
+    private func isTokenExpired() async -> Bool {
+        guard let expiryDate = await keychain.getDate(for: tokenExpiryKey) else {
             // No expiry date stored, assume expired for safety
             return true
         }
@@ -321,7 +322,7 @@ public actor XAuthService {
     /// Auto-handles token refresh internally
     /// Throws network errors - session expiry is auto-handled via logout
     private func refreshAccessToken() async throws -> String {
-        guard let refreshToken = UserDefaults.standard.string(forKey: refreshTokenKey) else {
+        guard let refreshToken = await keychain.getString(for: refreshTokenKey) else {
             // No refresh token - session expired, will be handled by caller
             throw AuthError.networkError("No refresh token available")
         }
@@ -360,11 +361,11 @@ public actor XAuthService {
             let expiresIn = json["expires_in"] as? Int ?? 7200
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
 
-            // Update stored tokens
-            UserDefaults.standard.set(accessToken, forKey: self.tokenKey)
-            UserDefaults.standard.set(expiryDate, forKey: self.tokenExpiryKey)
+            // Update stored tokens in Keychain
+            try? await keychain.save(accessToken, for: self.tokenKey)
+            try? await keychain.save(expiryDate, for: self.tokenExpiryKey)
             if let rt = newRefreshToken {
-                UserDefaults.standard.set(rt, forKey: self.refreshTokenKey)
+                try? await keychain.save(rt, for: self.refreshTokenKey)
             }
 
             // Notify that token was refreshed (for logging/debugging)

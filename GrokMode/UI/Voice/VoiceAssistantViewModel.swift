@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import Authentication
 
 enum ConversationItemType {
     case userSpeech(transcript: String)
@@ -53,17 +54,12 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // Tool Confirmation
     var pendingToolCall: PendingToolCall?
 
-    // X Auth
-    var isXAuthenticated = false
-    var xUserHandle: String?
-
     // MARK: - Private Properties
 
     private var xaiService: XAIVoiceService?
     private var audioStreamer: AudioStreamer!
     private var sessionState = SessionState()
-    private var authCancellable: AnyCancellable?
-    private let authService: XAuthService
+    private let authViewModel: AuthViewModel
 
     // Truncation tracking
     private var currentItemId: String?
@@ -72,28 +68,23 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // Configuration
     private let scenarioTopic = "Grok"
 
-    init(authService: XAuthService) {
-        self.authService = authService
+    // X Auth - computed properties from AuthViewModel
+    var isXAuthenticated: Bool {
+        authViewModel.isAuthenticated
+    }
+
+    var xUserHandle: String? {
+        authViewModel.currentUserHandle
+    }
+
+    init(authViewModel: AuthViewModel) {
+        self.authViewModel = authViewModel
         super.init()
 
         audioStreamer = AudioStreamer()
         audioStreamer.delegate = self
 
-        setupAuthObservation()
         checkPermissions()
-    }
-
-    private func setupAuthObservation() {
-        isXAuthenticated = authService.isAuthenticated
-        xUserHandle = authService.currentUserHandle
-
-        authCancellable = authService.publisher(for: \.isAuthenticated)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] isAuthenticated in
-                guard let self = self else { return }
-                self.isXAuthenticated = isAuthenticated
-                self.xUserHandle = self.authService.currentUserHandle
-            }
     }
 
     // MARK: - Permissions
@@ -180,7 +171,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 print("🔍 Query: \(scenarioTopic)")
 
                 async let searchResult = {
-                    let toolOrchestrator = XToolOrchestrator(authService: authService)
+                    let toolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
                     return await toolOrchestrator.executeTool(
                         .searchRecentTweets,
                         parameters: [
@@ -195,7 +186,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 }()
 
                 // Connect to XAI in parallel with tweet fetch
-                async let xaiConnection = xaiService!.connect()
+                async let xaiConnection: () = xaiService!.connect()
 
                 // Wait for both to complete
                 let (tweets, _) = try await (searchResult, xaiConnection)
@@ -555,7 +546,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
             } else if let tool = XTool(rawValue: toolCall.function.name) {
                 // Handle X API tools through orchestrator
-                let orchestrator = XToolOrchestrator(authService: authService)
+                let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
 
                 if result.success, let response = result.response {
@@ -563,7 +554,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                     isSuccess = true
 
                     // Parse and display tweets if applicable
-                    await parseTweetsFromResponse(response, toolName: tool.rawValue)
+                    parseTweetsFromResponse(response, toolName: tool.rawValue)
                 } else {
                     outputString = result.error?.message ?? "Unknown error"
                     isSuccess = false
@@ -694,11 +685,11 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - X Auth
 
-    func loginWithX() {
-        authService.login()
+    func loginWithX() async throws {
+        try await authViewModel.login()
     }
 
-    func logoutX() {
-        authService.logout()
+    func logoutX() async {
+        await authViewModel.logout()
     }
 }

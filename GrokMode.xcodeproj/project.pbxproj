@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		64D5DF3B2EE5802900800961 /* JSONSchema in Frameworks */ = {isa = PBXBuildFile; productRef = 64D5DF3A2EE5802900800961 /* JSONSchema */; };
+		A33705742EE7B85300E9505F /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = A337055A2EE7B85300E9505F /* Secrets.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -28,8 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A32D8C0F2EE7A1B000028F2A /* X */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = X; sourceTree = "<group>"; };
-		A32D8C102EE7A20000028F2A /* Authentication */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Authentication; sourceTree = "<group>"; };
+		A337055A2EE7B85300E9505F /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		A34575792EE5109700E6576A /* GrokMode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokMode.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575862EE5109800E6576A /* GrokModeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575902EE5109800E6576A /* GrokModeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -87,22 +87,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A32D8C0E2EE7A17800028F2A /* Packages */ = {
+		A337057B2EE7CCB000E9505F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				A32D8C102EE7A20000028F2A /* Authentication */,
-				A32D8C0F2EE7A1B000028F2A /* X */,
 			);
-			path = Packages;
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A34575702EE5109600E6576A = {
 			isa = PBXGroup;
 			children = (
 				A345757B2EE5109700E6576A /* GrokMode */,
-				A32D8C0E2EE7A17800028F2A /* Packages */,
 				A34575892EE5109800E6576A /* GrokModeTests */,
+				A337057B2EE7CCB000E9505F /* Frameworks */,
 				A345757A2EE5109700E6576A /* Products */,
+				A337055A2EE7B85300E9505F /* Secrets.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -237,6 +236,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A33705742EE7B85300E9505F /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,8 +296,7 @@
 /* Begin XCBuildConfiguration section */
 		A34575982EE5109800E6576A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = A345757B2EE5109700E6576A /* GrokMode */;
-			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			baseConfigurationReference = A337055A2EE7B85300E9505F /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -362,8 +361,7 @@
 		};
 		A34575992EE5109800E6576A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = A345757B2EE5109700E6576A /* GrokMode */;
-			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
+			baseConfigurationReference = A337055A2EE7B85300E9505F /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

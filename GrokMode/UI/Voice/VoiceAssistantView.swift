@@ -15,9 +15,9 @@ struct VoiceAssistantView: View {
 
     let autoConnect: Bool
 
-    init(autoConnect: Bool = false, authService: XAuthService) {
+    init(autoConnect: Bool = false, authViewModel: AuthViewModel) {
         self.autoConnect = autoConnect
-        self._viewModel = State(initialValue: VoiceAssistantViewModel(authService: authService))
+        self._viewModel = State(initialValue: VoiceAssistantViewModel(authViewModel: authViewModel))
     }
 
     var body: some View {
@@ -199,7 +199,9 @@ struct VoiceAssistantView: View {
 
             if !viewModel.isXAuthenticated {
                 Button("Login with X") {
-                    viewModel.loginWithX()
+                    Task {
+                        try? await viewModel.loginWithX()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .tint(.black)
@@ -219,7 +221,7 @@ struct VoiceAssistantView: View {
                 }
             }
             .listStyle(.plain)
-            .onChange(of: viewModel.conversationItems.count) { _ in
+            .onChange(of: viewModel.conversationItems.count) { _, _ in
                 if let lastItem = viewModel.conversationItems.last {
                     withAnimation {
                         scrollProxy.scrollTo(lastItem.id, anchor: .bottom)
@@ -344,7 +346,8 @@ struct ToolConfirmationSheet: View {
 }
 
 #Preview {
-    VoiceAssistantView(authService: XAuthService())
+    @Previewable @State var authViewModel = AuthViewModel()
+    VoiceAssistantView(authViewModel: authViewModel)
 }
 
 #Preview("Sheet") {

@@ -9,6 +9,7 @@ import Foundation
 import JSONSchema
 internal import OrderedCollections
 
+nonisolated
 enum XTool: String, CaseIterable, Identifiable {
     // MARK: - Posts/Tweets
     case createTweet = "create_tweet"

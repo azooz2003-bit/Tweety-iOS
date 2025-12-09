@@ -62,7 +62,7 @@ class AudioStreamer: NSObject {
         let audioSession = AVAudioSession.sharedInstance()
         do {
             // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
-            try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .allowAirPlay])
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
 
             // Set preferred sample rate and validate it
             try audioSession.setPreferredSampleRate(xaiSampleRate)

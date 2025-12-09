@@ -8,14 +8,15 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import Authentication
 
 // MARK: - Main View
 
 struct VoiceTestView: View {
     @State private var viewModel: VoiceTestViewModel
 
-    init(authService: XAuthService = XAuthService()) {
-        self._viewModel = State(initialValue: VoiceTestViewModel(authService: authService))
+    init(authViewModel: AuthViewModel) {
+        self._viewModel = State(initialValue: VoiceTestViewModel(authViewModel: authViewModel))
     }
 
     var body: some View {
@@ -117,7 +118,9 @@ struct ConnectionStatusView: View {
                     Text(viewModel.xUserHandle ?? "Logged In")
                     Spacer()
                     Button("Logout") {
-                        viewModel.logoutX()
+                        Task {
+                            await viewModel.logoutX()
+                        }
                     }
                     .font(.caption)
                     .buttonStyle(.bordered)
@@ -126,7 +129,9 @@ struct ConnectionStatusView: View {
                     Text("Not Logged In")
                     Spacer()
                     Button("Login with X") {
-                        viewModel.loginWithX()
+                        Task {
+                            try? await viewModel.loginWithX()
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.black)
@@ -211,7 +216,7 @@ struct MessageLogView: View {
                 .frame(height: 300)
                 .background(Color.black.opacity(0.05))
                 .cornerRadius(8)
-                .onChange(of: viewModel.messageLog.count) { _ in
+                .onChange(of: viewModel.messageLog.count) { _, _ in
                     if let lastMessage = viewModel.messageLog.last {
                         scrollView.scrollTo(lastMessage.id, anchor: .bottom)
                     }
@@ -424,46 +429,35 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     private var audioStreamer: AudioStreamer!
 
     // X Auth
-    var isXAuthenticated = false
-    var xUserHandle: String?
-    private var authCancellable: AnyCancellable?
-    private let authService: XAuthService
+    private let authViewModel: AuthViewModel
 
-    init(authService: XAuthService) {
-        self.authService = authService
+    var isXAuthenticated: Bool {
+        authViewModel.isAuthenticated
+    }
+
+    var xUserHandle: String? {
+        authViewModel.currentUserHandle
+    }
+
+    init(authViewModel: AuthViewModel) {
+        self.authViewModel = authViewModel
         super.init()
         // Initialize AudioStreamer
         audioStreamer = AudioStreamer()
         audioStreamer.delegate = self
 
-        setupAuthObservation()
         checkPermissions()
     }
 
     // Session State
     var sessionState = SessionState()
 
-    private func setupAuthObservation() {
-        // Initial state
-        self.isXAuthenticated = authService.isAuthenticated
-        self.xUserHandle = authService.currentUserHandle
-
-        // Observe changes
-        authCancellable = authService.publisher(for: \.isAuthenticated)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] isAuthenticated in
-                guard let self = self else { return }
-                self.isXAuthenticated = isAuthenticated
-                self.xUserHandle = self.authService.currentUserHandle
-            }
+    func loginWithX() async throws {
+        try await authViewModel.login()
     }
 
-    func loginWithX() {
-        authService.login()
-    }
-
-    func logoutX() {
-        authService.logout()
+    func logoutX() async {
+        await authViewModel.logout()
     }
 
     var canConnect: Bool {
@@ -499,7 +493,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     }
 
     func checkPermissions() {
-        let permissionStatus = AVAudioSession.sharedInstance().recordPermission
+        let permissionStatus = AVAudioApplication.shared.recordPermission
 
         switch permissionStatus {
         case .granted:
@@ -521,7 +515,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     }
 
     func requestMicrophonePermission() {
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 self?.micPermissionGranted = granted
                 self?.micPermissionStatus = granted ? "Granted" : "Denied"
@@ -544,7 +538,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
         xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
 
         // Tool Orchestrator
-        let toolOrchestrator = XToolOrchestrator(authService: authService)
+        let toolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
 
         // Set up callbacks
         xaiService?.onConnected = { [weak self] in
@@ -843,7 +837,7 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                     details = text
                     // Check for XML tool calls in text events (if any)
                     self.checkForHallucinatedToolCalls(in: text)
-                } else if let audio = message.audio {
+                } else if message.audio != nil {
                     // Suppress audio logs
                     return
                 }
@@ -1023,7 +1017,7 @@ extension VoiceTestViewModel {
                       return
                   }
             
-            let orchestrator = XToolOrchestrator(authService: authService)
+            let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
 
             // Only support XTools for now? Or check name
             if let tool = XTool(rawValue: toolCall.function.name) {

@@ -11,7 +11,7 @@ import JSONSchema
 struct XToolIntegration {
     
     // Tools allowed for the CEO Demo scenario
-    static var demoTools: [XTool] {
+    static var tools: [XTool] {
         XTool.allCases
     }
 
@@ -19,7 +19,7 @@ struct XToolIntegration {
         var definitions: [VoiceMessage.ToolDefinition] = []
         
         // Add all X tools (including Linear)
-        for tool in demoTools {
+        for tool in tools {
             if let schema = try? toolJSONSchema(for: tool) {
                 definitions.append(VoiceMessage.ToolDefinition(
                     type: "function",

@@ -9,6 +9,7 @@ import Foundation
 
 // MARK: - Data Models
 
+nonisolated
 struct SessionToken: Codable {
     let value: String
     let expiresAt: TimeInterval
@@ -19,6 +20,7 @@ struct SessionToken: Codable {
     }
 }
 
+nonisolated
 struct VoiceMessage: Codable {
     let type: String
     let audio: String? // Base64 encoded audio data

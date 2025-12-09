@@ -7,6 +7,7 @@
 
 import Foundation
 
+nonisolated
 struct XToolCallError: Codable, Error {
     let code: String
     let message: String
@@ -19,6 +20,7 @@ struct XToolCallError: Codable, Error {
     }
 }
 
+nonisolated
 struct XToolCallResult: Codable {
     let id: String?
     let toolName: String

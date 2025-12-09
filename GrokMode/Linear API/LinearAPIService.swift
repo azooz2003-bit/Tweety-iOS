@@ -87,7 +87,7 @@ public class LinearAPIService {
 
         let body: [String: Any] = [
             "query": query,
-            "variables": variables
+            "variables": variables as Any
         ].compactMapValues { $0 }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

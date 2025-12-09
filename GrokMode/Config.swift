@@ -7,6 +7,7 @@
 
 import Foundation
 
+nonisolated
 enum Config {
     static let xApiKey = {
         guard let apiKey = Bundle.main.infoDictionary?["X_API_KEY"] as? String else {

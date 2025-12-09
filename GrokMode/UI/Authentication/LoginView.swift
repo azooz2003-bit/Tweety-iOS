@@ -6,14 +6,17 @@
 //
 
 import SwiftUI
+import Authentication
 
 struct LoginView: View {
-    @Bindable var authService: XAuthService
+    @Bindable var authViewModel: AuthViewModel
+    @State private var showError = false
+    @State private var errorMessage = ""
 
     var body: some View {
         VStack(spacing: 30) {
             Spacer()
-            
+
             // Logo / Branding
             VStack(spacing: 15) {
                 Image(systemName: "waveform.circle.fill") // Placeholder logo
@@ -21,35 +24,37 @@ struct LoginView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 80, height: 80)
                     .foregroundColor(.primary)
-                
+
                 Text("GrokMode")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
-                
+
                 Text("Voice Agent for X")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
             .padding(.bottom, 40)
-            
+
             // Auth State
-            if authService.isAuthenticated {
+            if authViewModel.isAuthenticated {
                 VStack(spacing: 20) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.green)
                         .transition(.scale)
-                    
+
                     Text("Welcome back,")
                         .font(.headline)
-                    
-                    if let handle = authService.currentUserHandle {
+
+                    if let handle = authViewModel.currentUserHandle {
                         Text(handle)
                             .font(.title2)
                             .fontWeight(.semibold)
                     }
-                    
+
                     Button(action: {
-                        authService.logout()
+                        Task {
+                            await authViewModel.logout()
+                        }
                     }) {
                         Text("Sign Out")
                             .fontWeight(.medium)
@@ -63,7 +68,19 @@ struct LoginView: View {
             } else {
                 // Login Button
                 Button(action: {
-                    authService.login()
+                    Task {
+                        do {
+                            try await authViewModel.login()
+                        } catch AuthError.loginCancelled {
+                            // User cancelled - no error needed
+                        } catch let error as AuthError {
+                            errorMessage = error.localizedDescription
+                            showError = true
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            showError = true
+                        }
+                    }
                 }) {
                     HStack {
                         Image(systemName: "xmark.square.fill") // Placeholder for X logo, usually usage of trademarked logos requires care
@@ -82,15 +99,22 @@ struct LoginView: View {
             }
             
             Spacer()
-            
+
             // Footer
             Text("Powered by XAI")
                 .font(.caption2)
         }
         .padding()
+        .alert("Login Failed", isPresented: $showError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage)
+        }
     }
 }
 
 #Preview {
-    LoginView(authService: XAuthService())
+    @Previewable @State var authViewModel = AuthViewModel()
+
+    LoginView(authViewModel: authViewModel)
 }

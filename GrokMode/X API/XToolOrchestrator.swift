@@ -6,12 +6,14 @@
 //
 
 import Foundation
+import Authentication
 
+nonisolated
 enum HTTPMethod: String {
     case get = "GET", post = "POST", delete = "DELETE", put = "PUT"
 }
 
-class XToolOrchestrator {
+actor XToolOrchestrator {
     private var baseURL: String { Config.baseXURL }
     private let authService: XAuthService
 
@@ -152,7 +154,7 @@ class XToolOrchestrator {
         }
     }
 
-    func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
+    public func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
         return await executeToolWithRetry(tool, parameters: parameters, id: id, attempt: 1)
     }
 
@@ -191,9 +193,7 @@ class XToolOrchestrator {
                 // 401 on first attempt - token might have been revoked or invalid
                 // Force logout and return clear error
                 print("TOOL CALL: 401 Unauthorized - User needs to authenticate")
-                await MainActor.run {
-                    authService.logout()
-                }
+                await authService.logout()
                 return .failure(
                     id: id,
                     toolName: tool.name,
