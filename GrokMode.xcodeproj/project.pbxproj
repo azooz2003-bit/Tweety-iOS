@@ -28,6 +28,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A32D8C0F2EE7A1B000028F2A /* X */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = X; sourceTree = "<group>"; };
+		A32D8C102EE7A20000028F2A /* Authentication */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Authentication; sourceTree = "<group>"; };
 		A34575792EE5109700E6576A /* GrokMode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokMode.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575862EE5109800E6576A /* GrokModeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575902EE5109800E6576A /* GrokModeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -55,11 +57,6 @@
 		A34575892EE5109800E6576A /* GrokModeTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = GrokModeTests;
-			sourceTree = "<group>";
-		};
-		A34575932EE5109800E6576A /* GrokModeUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = GrokModeUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -90,12 +87,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A32D8C0E2EE7A17800028F2A /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				A32D8C102EE7A20000028F2A /* Authentication */,
+				A32D8C0F2EE7A1B000028F2A /* X */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
 		A34575702EE5109600E6576A = {
 			isa = PBXGroup;
 			children = (
 				A345757B2EE5109700E6576A /* GrokMode */,
+				A32D8C0E2EE7A17800028F2A /* Packages */,
 				A34575892EE5109800E6576A /* GrokModeTests */,
-				A34575932EE5109800E6576A /* GrokModeUITests */,
 				A345757A2EE5109700E6576A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -171,9 +177,6 @@
 			);
 			dependencies = (
 				A34575922EE5109800E6576A /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				A34575932EE5109800E6576A /* GrokModeUITests */,
 			);
 			name = GrokModeUITests;
 			packageProductDependencies = (
