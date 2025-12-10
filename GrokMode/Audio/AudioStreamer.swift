@@ -31,39 +31,32 @@ class AudioStreamer: NSObject {
     private let silenceThreshold: Float = -25.0 // dB
     private let silenceDuration = 30 // frames (~1.5 seconds at 20ms per frame)
 
-    // XAI audio format: 24kHz, 16-bit PCM, mono
+    // XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
     private static let xaiSampleRate: Double = 24000
 
-    // Lazy initialization to ensure formats are created after audio session is configured
     private static let xaiFormat: AVAudioFormat = {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                          sampleRate: xaiSampleRate,
                                          channels: 1,
                                          interleaved: false) else {
-            fatalError("Failed to create XAI audio format with sample rate: \(xaiSampleRate)")
+            fatalError("Failed to create XAI audio format")
         }
         return format
     }()
 
-    // Internal processing format (usually standard Float32)
-    private static let processingFormat: AVAudioFormat = {
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: xaiSampleRate, channels: 1) else {
-            fatalError("Failed to create processing audio format with sample rate: \(xaiSampleRate)")
-        }
-        return format
-    }()
+    // Hardware format - determined at runtime after voice processing is enabled
+    private let hardwareFormat: AVAudioFormat
 
     // MARK: Setup Audio Session
 
     static public func make() throws -> AudioStreamer {
+        // STEP 1: Configure audio session for voice processing
         let audioSession = AVAudioSession.sharedInstance()
-        // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
         try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
 
-        try audioSession.setPreferredSampleRate(xaiSampleRate)
-        let actualSampleRate = audioSession.sampleRate
-
+        // DON'T set preferred sample rate - let voice processing choose the optimal rate
         try audioSession.setActive(true)
+        os_log("✅ Audio session configured for voice processing")
 
         // STEP 2: Create and configure audio engine
         let audioEngine = AVAudioEngine()
@@ -71,25 +64,33 @@ class AudioStreamer: NSObject {
         let playerNode = AVAudioPlayerNode()
         let mixerNode = audioEngine.mainMixerNode
 
-        // STEP 3: Attach and Connect Nodes
-        // We use the playerNode for playing back the AI's voice
+        // STEP 3: Enable Voice Processing BEFORE querying format
+        try inputNode.setVoiceProcessingEnabled(true)
+        os_log("✅ Voice Processing (AEC) enabled")
+
+        // STEP 4: Query the actual hardware format chosen by voice processing
+        let hardwareFormat = inputNode.inputFormat(forBus: 0)
+        os_log("📊 Hardware format (chosen by Voice Processing):")
+        os_log("   Sample rate: \(hardwareFormat.sampleRate)Hz")
+        os_log("   Channels: \(hardwareFormat.channelCount)")
+        os_log("   Format: \(hardwareFormat.commonFormat.rawValue)")
+        os_log("📤 Will convert to XAI format: \(xaiSampleRate)Hz for Grok")
+
+        // STEP 5: Attach and Connect Nodes
         audioEngine.attach(playerNode)
 
-        // Connect player -> Mixer -> Output
-        // Use processingFormat (Float32) to ensure matching format for scheduling
-        // Access processingFormat here to trigger lazy initialization
-        let connectedFormat = processingFormat
-        os_log("   Connecting player with format: \(connectedFormat.sampleRate)Hz, \(connectedFormat.channelCount) channels")
-        audioEngine.connect(playerNode, to: mixerNode, format: connectedFormat)
+        // Connect player to mixer using hardware format for smooth playback
+        audioEngine.connect(playerNode, to: mixerNode, format: hardwareFormat)
+        os_log("✅ Audio nodes connected")
 
-        // Use the XAI format for consistency reference
-        let audioFormat = xaiFormat
-        os_log("   XAI format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
-
-        // STEP 4: Enable Voice Processing (AEC) on Input Node - AFTER session is configured
-        try inputNode.setVoiceProcessingEnabled(true)
-
-        return AudioStreamer(audioEngine: audioEngine, inputNode: inputNode, playerNode: playerNode, mixerNode: mixerNode, audioFormat: audioFormat)
+        return AudioStreamer(
+            audioEngine: audioEngine,
+            inputNode: inputNode,
+            playerNode: playerNode,
+            mixerNode: mixerNode,
+            audioFormat: xaiFormat,
+            hardwareFormat: hardwareFormat
+        )
     }
 
     init(
@@ -97,13 +98,15 @@ class AudioStreamer: NSObject {
         inputNode: AVAudioInputNode,
         playerNode: AVAudioPlayerNode,
         mixerNode: AVAudioMixerNode,
-        audioFormat: AVAudioFormat
+        audioFormat: AVAudioFormat,
+        hardwareFormat: AVAudioFormat
     ) {
         self.audioEngine = audioEngine
         self.inputNode = inputNode
         self.playerNode = playerNode
         self.mixerNode = mixerNode
         self.audioFormat = audioFormat
+        self.hardwareFormat = hardwareFormat
 
         super.init()
     }
@@ -175,31 +178,58 @@ class AudioStreamer: NSObject {
     }
     
     private func convertDataToBuffer(_ data: Data) throws -> AVAudioPCMBuffer {
-        // Data is Int16 (2 bytes per sample) 24kHz Mono
+        // Incoming data is 24kHz Int16 from Grok
         let frameCount = UInt32(data.count / 2)
-        
-        // Use processingFormat (Float32) for playback
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: Self.processingFormat, frameCapacity: frameCount) else {
+
+        // Step 1: Create a 24kHz Float32 buffer
+        guard let sourceFormat = AVAudioFormat(standardFormatWithSampleRate: Self.xaiSampleRate, channels: 1),
+              let sourceBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: frameCount) else {
             throw AudioError.convertToiOSPlaybackFormatFailed
         }
-        
-        buffer.frameLength = frameCount
-        
-        guard let floatChannelData = buffer.floatChannelData?[0] else {
+
+        sourceBuffer.frameLength = frameCount
+
+        guard let floatChannelData = sourceBuffer.floatChannelData?[0] else {
             throw AudioError.convertToiOSPlaybackFormatFailed
         }
-        
+
         // Convert Int16 to Float32
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             if let int16Bytes = bytes.bindMemory(to: Int16.self).baseAddress {
                 for i in 0..<Int(frameCount) {
-                    // Normalize Int16 to Float [-1.0, 1.0]
                     floatChannelData[i] = Float(int16Bytes[i]) / 32768.0
                 }
             }
         }
-        
-        return buffer
+
+        // Step 2: Resample from 24kHz to hardware format (if needed)
+        if sourceFormat.sampleRate == hardwareFormat.sampleRate {
+            return sourceBuffer
+        }
+
+        guard let converter = AVAudioConverter(from: sourceFormat, to: hardwareFormat) else {
+            throw AudioError.convertToiOSPlaybackFormatFailed
+        }
+
+        let ratio = hardwareFormat.sampleRate / sourceFormat.sampleRate
+        let outputFrameCount = AVAudioFrameCount(Double(frameCount) * ratio)
+
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: hardwareFormat, frameCapacity: outputFrameCount) else {
+            throw AudioError.convertToiOSPlaybackFormatFailed
+        }
+
+        var error: NSError?
+        converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return sourceBuffer
+        }
+
+        if let error = error {
+            throw AudioError.convertToiOSPlaybackFormatFailed
+        }
+
+        outputBuffer.frameLength = outputFrameCount
+        return outputBuffer
     }
 
     // MARK: Helpers
