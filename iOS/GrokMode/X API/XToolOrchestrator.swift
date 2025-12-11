@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Authentication
 
 nonisolated
 enum HTTPMethod: String {

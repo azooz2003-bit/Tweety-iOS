@@ -8,7 +8,6 @@
 import SwiftUI
 import AVFoundation
 import Combine
-import Authentication
 import OSLog
 
 struct PendingToolCall: Identifiable {

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Authentication
 
 @main
 struct GrokModeApp: App {

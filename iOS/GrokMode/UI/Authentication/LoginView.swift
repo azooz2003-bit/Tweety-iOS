@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Authentication
 
 struct LoginView: View {
     @Bindable var authViewModel: AuthViewModel
