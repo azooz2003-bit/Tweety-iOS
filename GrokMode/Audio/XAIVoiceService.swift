@@ -224,8 +224,9 @@ struct VoiceMessage: Codable {
 
 class XAIVoiceService {
     private let apiKey: String
-    private let sessionURL = URL(string: "https://api.x.ai/v1/realtime/client_secrets")!
-    private let websocketURL = URL(string: "wss://api.x.ai/v1/realtime")!
+    private let baseURL: URL = URL(string: Config.baseXAIProxyURL)!
+    private var sessionURL: URL { baseURL.appending(path: "v1/realtime/client_secrets") }
+    private var websocketURL: URL { baseURL.appending(path: "v1/realtime")}
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession

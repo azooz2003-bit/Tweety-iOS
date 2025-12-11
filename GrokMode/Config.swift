@@ -23,5 +23,17 @@ enum Config {
         return apiKey
     }()
 
-    static let baseXURL = "https://api.x.com"
+    static let baseXProxyURL = {
+        guard let apiKey = Bundle.main.infoDictionary?["BASE_X_PROXY_URL"] as? String else {
+            fatalError()
+        }
+        return apiKey
+    }()
+
+    static let baseXAIProxyURL = {
+        guard let apiKey = Bundle.main.infoDictionary?["BASE_XAI_PROXY_URL"] as? String else {
+            fatalError()
+        }
+        return apiKey
+    }()
 }

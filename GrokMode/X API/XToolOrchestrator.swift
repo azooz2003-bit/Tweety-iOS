@@ -14,7 +14,7 @@ enum HTTPMethod: String {
 }
 
 actor XToolOrchestrator {
-    private var baseURL: String { Config.baseXURL }
+    private var baseURL: String { Config.baseXAIProxyURL }
     private let authService: XAuthService
 
     init(authService: XAuthService) {

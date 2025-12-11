@@ -8,6 +8,10 @@
 	<string>$(X_CLIENT_ID)</string>
 	<key>X_API_KEY</key>
 	<string>$(X_API_KEY)</string>
+	<key>BASE_X_PROXY_URL</key>
+	<string>$(BASE_X_PROXY_URL)</string>
+	<key>BASE_XAI_PROXY_URL</key>
+	<string>$(BASE_XAI_PROXY_URL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
