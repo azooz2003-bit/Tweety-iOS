@@ -47,7 +47,7 @@ struct ConversationEvent: Codable {
         case sessionUpdate = "session.update", inputAudioBufferAppend = "input_audio_buffer.append", conversationItemCommit = "conversation.item.commit", conversationItemCreate = "conversation.item.create", responseCreate = "response.create", inputAudioBufferCommit = "input_audio_buffer.commit", conversationItemTruncate = "conversation.item.truncate"
 
 
-        case error
+        case error, ping
     }
 
     // Session configuration

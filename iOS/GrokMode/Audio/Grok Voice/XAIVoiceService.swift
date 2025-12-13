@@ -71,124 +71,82 @@ class XAIVoiceService {
 
     // MARK: - Token Acquisition
     func getEphemeralToken() async throws -> SessionToken {
-        print("🔑 ===== STARTING EPHEMERAL TOKEN REQUEST =====")
-        print("🔑 Requesting ephemeral token from XAI API...")
-        print("🔑 URL: \(sessionURL.absoluteString)")
+        AppLogger.network.info("Requesting ephemeral token")
 
         var request = URLRequest(url: sessionURL)
         request.httpMethod = "POST"
-        print("🔑 HTTP Method: \(request.httpMethod ?? "UNKNOWN")")
-
-        // Set headers
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
-        print("🔑 Request Headers:")
-        if let headers = request.allHTTPHeaderFields {
-            for (key, value) in headers {
-                print("🔑   \(key): \(value)")
-            }
-        }
-
-        // Create request body
         let requestBody = ["expires_after": ["seconds": 300]]
-        print("🔑 Request Body (JSON):")
-        print("🔑   \(requestBody)")
+        request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let jsonData = try JSONEncoder().encode(requestBody)
-        request.httpBody = jsonData
-
-        print("🔑 Request Body (Raw):")
-        if let bodyString = String(data: jsonData, encoding: .utf8) {
-            print("🔑   \(bodyString)")
-        }
-
-        print("🔑 ===== SENDING REQUEST =====")
+        #if DEBUG
+        AppLogger.network.debug("Token request URL: \(self.sessionURL.absoluteString)")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, "Request headers: \(request.allHTTPHeaderFields?.description ?? "none")")
+        #endif
 
         do {
             let (data, response) = try await urlSession.data(for: request)
 
-            print("🔑 ===== RECEIVED RESPONSE =====")
-
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ ERROR: Response is not HTTPURLResponse")
-                print("❌ Response type: \(type(of: response))")
-                print("❌ Response: \(response)")
+                AppLogger.network.error("Invalid HTTP response type")
                 throw XAIVoiceError.invalidResponse
             }
 
-            print("🔑 Response Status Code: \(httpResponse.statusCode)")
-            print("🔑 Response Status: \(HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode))")
-
-            print("🔑 Response Headers:")
-            for (key, value) in httpResponse.allHeaderFields {
-                print("🔑   \(key): \(value)")
-            }
-
-            print("🔑 Response Body (Raw Data Length): \(data.count) bytes")
-
+            #if DEBUG
+            AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
             if let responseString = String(data: data, encoding: .utf8) {
-                print("🔑 Response Body (String):")
-                print("🔑   \(responseString)")
-            } else {
-                print("❌ ERROR: Cannot convert response data to string")
-                print("❌ Response Data (Hex): \(data.map { String(format: "%02x", $0) }.joined(separator: " "))")
+                AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body: \(responseString)")
             }
+            #endif
 
             guard httpResponse.statusCode == 200 else {
                 let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                print("❌ ERROR: HTTP \(httpResponse.statusCode) - \(errorText)")
+                AppLogger.network.error("Token request failed: HTTP \(httpResponse.statusCode) - \(errorText)")
                 throw XAIVoiceError.apiError(statusCode: httpResponse.statusCode, message: errorText)
             }
 
-            print("🔑 ===== PARSING JSON RESPONSE =====")
+            let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
 
-            do {
-                let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
-                print("✅ Successfully parsed JSON response")
-                print("✅ Token Value: \(sessionToken.value.prefix(10))...\(sessionToken.value.suffix(10))")
-                print("✅ Token Expires At: \(Date(timeIntervalSince1970: sessionToken.expiresAt))")
-                print("✅ Token Expires In: \(sessionToken.expiresAt - Date().timeIntervalSince1970) seconds")
+            #if DEBUG
+            AppLogger.logSensitive(AppLogger.network, level: .info, "Token acquired: \(AppLogger.redacted(sessionToken.value))")
+            AppLogger.network.debug("Token expires in: \(Int(sessionToken.expiresAt - Date().timeIntervalSince1970))s")
+            #else
+            AppLogger.network.info("Token acquired successfully")
+            #endif
 
-                print("✅ ===== TOKEN ACQUISITION SUCCESSFUL =====")
-                return sessionToken
+            return sessionToken
 
-            } catch let decodingError {
-                print("❌ ERROR: Failed to decode JSON response")
-                print("❌ Decoding Error: \(decodingError)")
-                print("❌ Raw Response Data: \(String(data: data, encoding: .utf8) ?? "Cannot decode")")
-                throw decodingError
-            }
-
-        } catch let networkError {
-            print("❌ ERROR: Network request failed")
-            print("❌ Network Error: \(networkError)")
-            print("❌ Error Type: \(type(of: networkError))")
-            throw networkError
+        } catch let error as XAIVoiceError {
+            throw error
+        } catch {
+            AppLogger.network.error("Token request failed: \(error.localizedDescription)")
+            throw error
         }
     }
 
     // MARK: - WebSocket Connection
     func connect() async throws {
-        print("🔌 Connecting to XAI Voice API...")
+        AppLogger.voice.info("Connecting to XAI Voice API")
 
-        // Get ephemeral token first (like web client examples)
         let token = try await getEphemeralToken()
 
-        // Create WebSocket task with protocol headers
         var request = URLRequest(url: websocketURL)
         request.setValue("Bearer \(token.value)", forHTTPHeaderField: "Authorization")
+
+        #if DEBUG
+        AppLogger.voice.debug("WebSocket URL: \(self.websocketURL.absoluteString)")
+        #endif
 
         webSocketTask = urlSession.webSocketTask(with: request)
         webSocketTask?.resume()
 
-        // Start receiving messages
         receiveMessages()
 
-        // Wait for connection to be established
         try await waitForConnection()
 
-        print("✅ WebSocket connected to XAI API")
+        AppLogger.voice.info("WebSocket connected successfully")
     }
 
     private func waitForConnection() async throws {
@@ -207,7 +165,7 @@ class XAIVoiceService {
     // MARK: - Session Configuration
 
     func configureSession(tools: [ConversationEvent.ToolDefinition]? = nil) throws {
-        print("⚙️ Configuring voice session...")
+        AppLogger.voice.info("Configuring voice session")
 
         let sessionConfig = ConversationEvent(
             type: .sessionUpdate,
@@ -376,7 +334,7 @@ class XAIVoiceService {
     }
 
     func sendTruncationEvent(itemId: String, audioEndMs: Int, contentIndex: Int = 0) throws {
-        print("✂️ Truncating item \(itemId) at \(audioEndMs)ms")
+        AppLogger.voice.debug("Truncating item \(itemId) at \(audioEndMs)ms")
         let message = ConversationEvent(
             type: .conversationItemTruncate,
             audio: nil,
@@ -417,7 +375,11 @@ class XAIVoiceService {
         let messageString = String(data: jsonData, encoding: .utf8)!
 
         let wsMessage = URLSessionWebSocketTask.Message.string(messageString)
-        os_log("[Client] Sending event:\n\(messageString)")
+
+        #if DEBUG
+        AppLogger.voice.debug("Sending event: \(message.type.rawValue)")
+        #endif
+
         webSocketTask.send(wsMessage) { error in
             if let error = error {
                 self.onError?(error)
@@ -444,7 +406,7 @@ class XAIVoiceService {
                 self.receiveMessages()
 
             case .failure(let error):
-                print("❌ WebSocket receive error: \(error)")
+                AppLogger.voice.error("WebSocket receive error: \(error.localizedDescription)")
                 self.onDisconnected?(error)
             }
         }
@@ -452,35 +414,39 @@ class XAIVoiceService {
 
     private func handleTextMessage(_ text: String) {
         guard let message = try? JSONDecoder().decode(ConversationEvent.self, from: Data(text.utf8)) else {
-            os_log("[Grok] Received unanticipated message \(text)")
+            #if DEBUG
+            AppLogger.voice.warning("Received unanticipated message format")
+            AppLogger.logSensitive(AppLogger.voice, level: .debug, "Message content: \(text)")
+            #endif
             return
         }
 
-        // Always call the message callback first
         onMessageReceived?(message)
-        os_log("[Grok] Received message of type \(message.type.rawValue)")
 
-        // Then handle specific message types
+        #if DEBUG
+        AppLogger.voice.debug("Received message: \(message.type.rawValue)")
+        #endif
+
         switch message.type {
         case .conversationCreated:
-            os_log("💬 Conversation created, configuring session...")
+            AppLogger.voice.info("Conversation created, configuring session")
             try? configureSession()
 
         case .sessionUpdated:
-            os_log("✅ Session configured, ready for voice interaction")
+            AppLogger.voice.info("Session configured successfully")
             onConnected?()
-            
+
         case .responseFunctionCallArgumentsDone:
              if let callId = message.call_id,
                 let name = message.name,
                 let arguments = message.arguments {
-                 
-                 os_log("📝 Logging tool call to SessionState: \(name)")
+
+                 AppLogger.tools.info("Tool call received: \(name)")
                  let params: [String: Any]? = {
                      guard let data = arguments.data(using: .utf8) else { return nil }
                      return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                  }()
-                 
+
                  sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
              }
 
@@ -490,8 +456,9 @@ class XAIVoiceService {
     }
 
     private func handleDataMessage(_ data: Data) {
-        // Handle binary data if needed
-        os_log("📦 Received binary data: \(data.count) bytes")
+        #if DEBUG
+        AppLogger.voice.debug("Received binary data: \(data.count) bytes")
+        #endif
     }
 
     // MARK: - Connection Management
@@ -499,7 +466,7 @@ class XAIVoiceService {
     func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
-        print("🔌 WebSocket disconnected")
+        AppLogger.voice.info("WebSocket disconnected")
     }
 
     deinit {

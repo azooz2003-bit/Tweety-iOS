@@ -6,6 +6,7 @@
 //
 
 import Foundation
+internal import os
 
 nonisolated
 enum HTTPMethod: String {
@@ -152,17 +153,19 @@ actor XToolOrchestrator {
         do {
             let request = try await buildRequest(for: tool, parameters: parameters)
 
-            print("TOOL CALL: Executing \(tool.name) (attempt \(attempt))")
-            print("TOOL CALL: URL: \(request.url?.absoluteString ?? "nil")")
-            print("TOOL CALL: Method: \(request.httpMethod ?? "nil")")
+            #if DEBUG
+            AppLogger.tools.debug("TOOL CALL: Executing \(tool.name) (attempt \(attempt))")
+            AppLogger.tools.debug("TOOL CALL: URL: \(request.url?.absoluteString ?? "nil")")
+            AppLogger.tools.debug("TOOL CALL: Method: \(request.httpMethod ?? "nil")")
             if let body = request.httpBody, let bodyString = String(data: body, encoding: .utf8) {
-                print("TOOL CALL: Body: \(bodyString)")
+                AppLogger.logSensitive(AppLogger.tools, level: .debug, "TOOL CALL: Body: \(bodyString)")
             }
+            #endif
 
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                 print("TOOL CALL: Invalid Response")
+                AppLogger.network.error("TOOL CALL: Invalid Response")
                 return .failure(
                     id: id,
                     toolName: tool.name,
@@ -171,10 +174,12 @@ actor XToolOrchestrator {
                 )
             }
 
-            print("TOOL CALL: Status Code: \(httpResponse.statusCode)")
+            #if DEBUG
+            AppLogger.network.debug("TOOL CALL: Status Code: \(httpResponse.statusCode)")
             if let responseString = String(data: data, encoding: .utf8) {
-                print("TOOL CALL: Response: \(responseString)")
+                AppLogger.logSensitive(AppLogger.network, level: .debug, "TOOL CALL: Response: \(responseString)")
             }
+            #endif
 
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
@@ -182,7 +187,7 @@ actor XToolOrchestrator {
             } else if httpResponse.statusCode == 401 && attempt == 1 && requiresUserContext(tool) {
                 // 401 on first attempt - token might have been revoked or invalid
                 // Force logout and return clear error
-                print("TOOL CALL: 401 Unauthorized - User needs to authenticate")
+                AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - User needs to authenticate")
                 await authService.logout()
                 return .failure(
                     id: id,

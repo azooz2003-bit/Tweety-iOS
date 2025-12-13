@@ -158,7 +158,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         xaiService?.onError = { [weak self] error in
             Task { @MainActor in
-                print("🔴 XAI Error: \(error.localizedDescription)")
+                AppLogger.voice.error("XAI Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopListening()
@@ -174,8 +174,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         Task {
             do {
                 // Execute tweet pre-fetch and XAI connection in parallel
-                print("🔍 ===== TWEET API REQUEST =====")
-                print("🔍 Query: \(scenarioTopic)")
+                #if DEBUG
+                AppLogger.network.debug("===== TWEET API REQUEST =====")
+                AppLogger.network.debug("Query: \(self.scenarioTopic)")
+                #endif
 
                 async let searchResult = {
                     let toolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
@@ -198,11 +200,13 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 // Wait for both to complete
                 let (tweets, _) = try await (searchResult, xaiConnection)
 
-                print("🔍 ===== TWEET API RESPONSE =====")
-                print("🔍 Success: \(tweets.success)")
+                #if DEBUG
+                AppLogger.network.debug("===== TWEET API RESPONSE =====")
+                AppLogger.network.debug("Success: \(tweets.success)")
                 if let response = tweets.response {
-                    print("🔍 Response length: \(response.count) characters")
+                    AppLogger.network.debug("Response length: \(response.count) characters")
                 }
+                #endif
 
                 var contextString = ""
                 if tweets.success, let response = tweets.response {
@@ -275,7 +279,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     }
 
     func reconnect() {
-        print("🔄 Reconnecting...")
+        AppLogger.voice.info("Reconnecting...")
 
         // Stop any existing streams
         isListening = false
@@ -320,7 +324,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
             do {
                 try xaiService?.sendAudioChunk(data)
             } catch {
-                print("❌ Failed to send audio chunk: \(error)")
+                AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
                 // Stop streaming to prevent error cascade
                 stopListening()
             }
@@ -556,7 +560,9 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         if let lastItem = conversationItems.last,
            case .systemMessage(let lastMessage) = lastItem.type,
            lastMessage == message {
-            print("⚠️ Skipping duplicate system message: \(message)")
+            #if DEBUG
+            AppLogger.voice.debug("Skipping duplicate system message: \(message)")
+            #endif
             return
         }
 
@@ -567,9 +573,11 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Try to parse tweets from JSON response
         guard let data = response.data(using: .utf8) else { return }
 
+        #if DEBUG
         // DEBUG: Log raw response
-        print("🔍 RAW TWEET RESPONSE (first 500 chars):")
-        print(response.prefix(500))
+        AppLogger.network.debug("RAW TWEET RESPONSE (first 500 chars):")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, String(response.prefix(500)))
+        #endif
 
         do {
             if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets {
@@ -585,69 +593,85 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
                 let tweetResponse = try JSONDecoder().decode(TweetResponse.self, from: data)
 
-                print("📦 ===== PARSED TWEET DATA =====")
-                print("📦 Total tweets: \(tweetResponse.data?.count ?? 0)")
-                print("📦 Total users in includes: \(tweetResponse.includes?.users?.count ?? 0)")
-                print("📦 Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
+                #if DEBUG
+                AppLogger.network.debug("===== PARSED TWEET DATA =====")
+                AppLogger.network.debug("Total tweets: \(tweetResponse.data?.count ?? 0)")
+                AppLogger.network.debug("Total users in includes: \(tweetResponse.includes?.users?.count ?? 0)")
+                AppLogger.network.debug("Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
+                #endif
 
                 if let tweets = tweetResponse.data {
                     for (index, tweet) in tweets.enumerated() {
-                        print("\n📊 ===== TWEET #\(index + 1) =====")
-                        print("📊 ID: \(tweet.id)")
-                        print("📊 Text: \(tweet.text.prefix(50))...")
-                        print("📊 Author ID: \(tweet.author_id ?? "nil")")
-                        print("📊 Created At: \(tweet.created_at ?? "nil")")
+                        #if DEBUG
+                        AppLogger.network.debug("===== TWEET #\(index + 1) =====")
+                        AppLogger.network.debug("ID: \(tweet.id)")
+                        AppLogger.network.debug("Text: \(String(tweet.text.prefix(50)))...")
+                        AppLogger.network.debug("Author ID: \(tweet.author_id ?? "nil")")
+                        AppLogger.network.debug("Created At: \(tweet.created_at ?? "nil")")
+                        #endif
 
                         let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                        print("📊 Author Found: \(author != nil)")
+                        #if DEBUG
+                        AppLogger.network.debug("Author Found: \(author != nil)")
                         if let author = author {
-                            print("📊   - Name: \(author.name)")
-                            print("📊   - Username: @\(author.username)")
+                            AppLogger.network.debug("  - Name: \(author.name)")
+                            AppLogger.network.debug("  - Username: @\(author.username)")
                         }
 
                         // Log attachments
                         if let attachments = tweet.attachments {
-                            print("📊 Attachments: \(attachments.media_keys?.count ?? 0) media items")
+                            AppLogger.network.debug("Attachments: \(attachments.media_keys?.count ?? 0) media items")
                         } else {
-                            print("📊 Attachments: none")
+                            AppLogger.network.debug("Attachments: none")
                         }
 
                         // Log metrics in detail
-                        print("📊 Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
+                        AppLogger.network.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
                         if let metrics = tweet.public_metrics {
-                            print("📊   ✓ Like Count: \(metrics.like_count ?? 0)")
-                            print("📊   ✓ Retweet Count: \(metrics.retweet_count ?? 0)")
-                            print("📊   ✓ Reply Count: \(metrics.reply_count ?? 0)")
-                            print("📊   ✓ Quote Count: \(metrics.quote_count ?? 0)")
-                            print("📊   ✓ Impression Count (Views): \(metrics.impression_count ?? 0)")
-                            print("📊   ✓ Bookmark Count: \(metrics.bookmark_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Like Count: \(metrics.like_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Retweet Count: \(metrics.retweet_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Reply Count: \(metrics.reply_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Quote Count: \(metrics.quote_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Impression Count (Views): \(metrics.impression_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Bookmark Count: \(metrics.bookmark_count ?? 0)")
                         } else {
-                            print("📊   ✗ NO METRICS IN RESPONSE")
+                            AppLogger.network.debug("  ✗ NO METRICS IN RESPONSE")
                         }
+                        #endif
 
                         // Extract media URLs for this tweet
                         var mediaUrls: [String] = []
                         if let mediaKeys = tweet.attachments?.media_keys,
                            let allMedia = tweetResponse.includes?.media {
-                            print("📊 Processing \(mediaKeys.count) media keys...")
+                            #if DEBUG
+                            AppLogger.network.debug("Processing \(mediaKeys.count) media keys...")
+                            #endif
                             for mediaKey in mediaKeys {
                                 if let media = allMedia.first(where: { $0.media_key == mediaKey }),
                                    let displayUrl = media.displayUrl {
                                     mediaUrls.append(displayUrl)
-                                    print("📊   ✓ Media URL: \(displayUrl.prefix(50))...")
+                                    #if DEBUG
+                                    AppLogger.network.debug("  ✓ Media URL: \(String(displayUrl.prefix(50)))...")
+                                    #endif
                                 }
                             }
                         }
-                        print("📊 Total Media URLs: \(mediaUrls.count)")
+                        #if DEBUG
+                        AppLogger.network.debug("Total Media URLs: \(mediaUrls.count)")
+                        #endif
 
                         addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
-                        print("📊 ✓ Tweet #\(index + 1) added to conversation")
+                        #if DEBUG
+                        AppLogger.network.debug("✓ Tweet #\(index + 1) added to conversation")
+                        #endif
                     }
                 }
-                print("\n📦 ===== PARSING COMPLETE =====\n")
+                #if DEBUG
+                AppLogger.network.debug("===== PARSING COMPLETE =====")
+                #endif
             }
         } catch {
-            print("Failed to parse tweets: \(error)")
+            AppLogger.network.error("Failed to parse tweets: \(error.localizedDescription)")
         }
     }
 

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+internal import os
 
 // MARK: - Models
 
@@ -97,9 +98,11 @@ enum ToolResponseContent: Codable {
                 break
             }
         } catch {
-            print("Failed to decode specific response for \(toolName): \(error)")
+            #if DEBUG
+            AppLogger.tools.debug("Failed to decode specific response for \(toolName): \(error.localizedDescription)")
+            #endif
         }
-        
+
         // Fallback or generic success check not needed as we default to raw
         return .raw(jsonString)
     }

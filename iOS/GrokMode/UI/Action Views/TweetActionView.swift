@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import os
 
 struct TweetActionView: View {
     let title: String
@@ -115,10 +116,14 @@ struct TweetActionView: View {
             content: "fuhwighiwulgawip oihguwihg wagrwr9gwa9 9ag8 9 rgwa8g 98a o98aw g4gw y9a98g",
             actions: [
                 TweetActionView.ActionConfig(action: {
-                    print("Xmark")
+                    #if DEBUG
+                    AppLogger.ui.debug("Xmark")
+                    #endif
                 }, symbol: "xmark"),
                 TweetActionView.ActionConfig(action: {
-                    print("Checkmark")
+                    #if DEBUG
+                    AppLogger.ui.debug("Checkmark")
+                    #endif
                 }, symbol: "checkmark"),
             ]
         )
@@ -130,10 +135,14 @@ struct TweetActionView: View {
             content: "Id: fwfwg\nfewfwfwef",
             actions: [
                 TweetActionView.ActionConfig(action: {
-                    print("Xmark")
+                    #if DEBUG
+                    AppLogger.ui.debug("Xmark")
+                    #endif
                 }, symbol: "xmark"),
                 TweetActionView.ActionConfig(action: {
-                    print("Checkmark")
+                    #if DEBUG
+                    AppLogger.ui.debug("Checkmark")
+                    #endif
                 }, symbol: "checkmark"),
             ]
         )

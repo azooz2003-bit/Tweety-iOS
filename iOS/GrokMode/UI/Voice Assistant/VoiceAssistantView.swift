@@ -45,6 +45,20 @@ struct VoiceAssistantView: View {
                   }
               }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button {
+                            Task {
+                                await viewModel.logoutX()
+                            }
+                        } label: {
+                            Label("Logout", image: "")
+                        }
+                    } label: {
+                        Label("", systemImage: "ellipsis")
+                    }
+                }
+
                 ToolbarItem(placement:.bottomBar) {
                     if !viewModel.isListening {
                         waveformButton(barCount: 5) {
