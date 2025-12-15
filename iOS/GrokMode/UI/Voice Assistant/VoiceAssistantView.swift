@@ -74,7 +74,6 @@ struct VoiceAssistantView: View {
                         waveformButton(barCount: 37)
                             .disabled(!viewModel.voiceSessionState.isConnected)
                             .opacity(viewModel.voiceSessionState.isConnected ? 1.0 : 0.5)
-                            .frame(maxHeight: .infinity)
                     }
 
                 }
@@ -160,15 +159,13 @@ struct VoiceAssistantView: View {
     }
 
     private var stopButton: some View {
-        Button {
+        Button("Stop", systemImage: "stop.fill") {
             withAnimation {
                 viewModel.stopListening()
             }
-        } label: {
-            Image(systemName: "stop.fill")
-                .foregroundStyle(.white)
-                .font(.system(size: 20))
         }
+        .foregroundStyle(.white)
+        .font(.system(size: 20))
     }
 }
 
