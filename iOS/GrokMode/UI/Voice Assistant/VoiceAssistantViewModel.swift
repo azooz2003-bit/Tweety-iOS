@@ -218,15 +218,26 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - Audio Streaming
 
-    func startListening() throws {
+    func startListening() {
         guard voiceSessionState.isConnected else { return }
 
+        // Set state immediately for instant UI feedback
         isSessionActivated = true
         voiceSessionState = .listening
-        try audioStreamer?.startStreaming()
+
+        // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
+        audioStreamer?.startStreamingAsync { [weak self] error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
+                    self?.voiceSessionState = .error("Microphone access failed")
+                }
+            }
+        }
     }
 
     func stopListening() {
+        isSessionActivated = false
         audioStreamer?.stopStreaming()
         // Return to connected state if still connected, otherwise keep current state
         if voiceSessionState.isConnected {

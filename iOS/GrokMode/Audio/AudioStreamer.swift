@@ -28,6 +28,9 @@ class AudioStreamer: NSObject {
     // Hardware format - determined at runtime after voice processing is enabled
     private let hardwareFormat: AVAudioFormat
 
+    // Serial queue for all audio operations to keep them off main thread
+    private let audioQueue = DispatchQueue(label: "com.grokmode.audiostreamer", qos: .userInitiated)
+
     private var hasTapInstalled = false
     private var speechDetected = false
     private var silenceCounter = 0
@@ -123,6 +126,23 @@ class AudioStreamer: NSObject {
     // MARK: Audio Actions
 
     func startStreaming() throws {
+        try audioQueue.sync {
+            try startStreamingImpl()
+        }
+    }
+
+    func startStreamingAsync(completion: @escaping (Error?) -> Void) {
+        audioQueue.async { [weak self] in
+            do {
+                try self?.startStreamingImpl()
+                completion(nil)
+            } catch {
+                completion(error)
+            }
+        }
+    }
+
+    private func startStreamingImpl() throws {
         guard !isStreaming else { return }
 
         os_log("🎙️ Starting audio streaming to XAI...")
@@ -148,17 +168,19 @@ class AudioStreamer: NSObject {
     }
 
     func stopStreaming() {
-        guard isStreaming else { return }
+        audioQueue.sync {
+            guard isStreaming else { return }
 
-        // Don't fully stop the engine if we want to keep playing clean tails, but typically we stop.
-        // For full session end:
-        audioEngine.stop()
-        inputNode.removeTap(onBus: 0)
-        playerNode.stop()
+            // Don't fully stop the engine if we want to keep playing clean tails, but typically we stop.
+            // For full session end:
+            audioEngine.stop()
+            inputNode.removeTap(onBus: 0)
+            playerNode.stop()
 
-        hasTapInstalled = false
-        speechDetected = false
-        silenceCounter = 0
+            hasTapInstalled = false
+            speechDetected = false
+            silenceCounter = 0
+        }
 
         os_log("✅ Audio streaming stopped")
     }

@@ -66,7 +66,7 @@ struct VoiceAssistantView: View {
                                 if !viewModel.voiceSessionState.isConnected {
                                     viewModel.reconnect()
                                 } else {
-                                    try? viewModel.startListening() // TODO: handle error
+                                    viewModel.startListening() // TODO: handle error
                                 }
                             }
                         }
