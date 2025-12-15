@@ -22,34 +22,43 @@ class AudioStreamer: NSObject {
     private var audioEngine: AVAudioEngine
     private var inputNode: AVAudioInputNode
     private var playerNode: AVAudioPlayerNode
-    private var audioFormat: AVAudioFormat
+    private var serverAudioFormat: AVAudioFormat
     private var mixerNode: AVAudioMixerNode
 
-    private var isStreaming = false
+    // Hardware format - determined at runtime after voice processing is enabled
+    private let hardwareFormat: AVAudioFormat
+
+    private var hasTapInstalled = false
     private var speechDetected = false
     private var silenceCounter = 0
     private let silenceThreshold: Float = -25.0 // dB
     private let silenceDuration = 30 // frames (~1.5 seconds at 20ms per frame)
 
+    /// Computed property that reflects actual streaming state
+    /// Returns true when input tap is installed AND audio engine is running
+    var isStreaming: Bool {
+        hasTapInstalled && audioEngine.isRunning
+    }
+
     // XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
-    private static let xaiSampleRate: Double = 24000
+    var serverSampleRate: Double {
+        serverAudioFormat.sampleRate
+    }
 
-    private static let xaiFormat: AVAudioFormat = {
-        guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                         sampleRate: xaiSampleRate,
-                                         channels: 1,
-                                         interleaved: false) else {
-            fatalError("Failed to create XAI audio format")
-        }
-        return format
-    }()
-
-    // Hardware format - determined at runtime after voice processing is enabled
-    private let hardwareFormat: AVAudioFormat
 
     // MARK: Setup Audio Session
 
-    static public func make() throws -> AudioStreamer {
+    static public func make(xaiSampleRate: Double = 24000) throws -> AudioStreamer {
+        let xaiFormat: AVAudioFormat = {
+            guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                             sampleRate: xaiSampleRate,
+                                             channels: 1,
+                                             interleaved: false) else {
+                fatalError("Failed to create XAI audio format")
+            }
+            return format
+        }()
+
         // STEP 1: Configure audio session for voice processing
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
@@ -88,7 +97,7 @@ class AudioStreamer: NSObject {
             inputNode: inputNode,
             playerNode: playerNode,
             mixerNode: mixerNode,
-            audioFormat: xaiFormat,
+                        serverAudioFormat: xaiFormat,
             hardwareFormat: hardwareFormat
         )
     }
@@ -98,14 +107,14 @@ class AudioStreamer: NSObject {
         inputNode: AVAudioInputNode,
         playerNode: AVAudioPlayerNode,
         mixerNode: AVAudioMixerNode,
-        audioFormat: AVAudioFormat,
+                    serverAudioFormat: AVAudioFormat,
         hardwareFormat: AVAudioFormat
     ) {
         self.audioEngine = audioEngine
         self.inputNode = inputNode
         self.playerNode = playerNode
         self.mixerNode = mixerNode
-        self.audioFormat = audioFormat
+        self.serverAudioFormat = serverAudioFormat
         self.hardwareFormat = hardwareFormat
 
         super.init()
@@ -135,7 +144,7 @@ class AudioStreamer: NSObject {
             try audioEngine.start()
         }
         playerNode.play() // Start the player node so it's ready to handle scheduled buffers
-        isStreaming = true
+        hasTapInstalled = true
     }
 
     func stopStreaming() {
@@ -146,8 +155,8 @@ class AudioStreamer: NSObject {
         audioEngine.stop()
         inputNode.removeTap(onBus: 0)
         playerNode.stop()
-        
-        isStreaming = false
+
+        hasTapInstalled = false
         speechDetected = false
         silenceCounter = 0
 
@@ -182,7 +191,7 @@ class AudioStreamer: NSObject {
         let frameCount = UInt32(data.count / 2)
 
         // Step 1: Create a 24kHz Float32 buffer
-        guard let sourceFormat = AVAudioFormat(standardFormatWithSampleRate: Self.xaiSampleRate, channels: 1),
+        guard let sourceFormat = AVAudioFormat(standardFormatWithSampleRate: self.serverSampleRate, channels: 1),
               let sourceBuffer = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: frameCount) else {
             throw AudioError.convertToiOSPlaybackFormatFailed
         }
@@ -285,16 +294,16 @@ class AudioStreamer: NSObject {
 
     private func convertToXAIFormat(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         // Optimization: If format already matches, return as is
-        if buffer.format == Self.xaiFormat { return buffer }
+        if buffer.format == self.serverAudioFormat { return buffer }
 
         // Convert to XAI format: 24kHz, mono, 16-bit PCM
-        let converter = AVAudioConverter(from: buffer.format, to: Self.xaiFormat)
+        let converter = AVAudioConverter(from: buffer.format, to: self.serverAudioFormat)
 
         // Adjust frame length of input buffer to follow xAI's sample rate
-        let ratio = Self.xaiFormat.sampleRate / buffer.format.sampleRate
+        let ratio = self.serverAudioFormat.sampleRate / buffer.format.sampleRate
         let frameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
         
-        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: Self.xaiFormat, frameCapacity: frameCount) else {
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: self.serverAudioFormat, frameCapacity: frameCount) else {
             throw AudioError.convertToxAiFormatFailed
         }
 

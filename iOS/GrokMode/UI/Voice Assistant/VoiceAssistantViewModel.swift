@@ -10,49 +10,12 @@ import AVFoundation
 import Combine
 import OSLog
 
-struct PendingToolCall: Identifiable {
-    let id: String
-    let functionName: String
-    let arguments: String
-    let previewTitle: String
-    let previewContent: String
-}
-
-enum ConversationItemType {
-    case userSpeech(transcript: String)
-    case assistantSpeech(text: String)
-    case tweet(XTweet, author: XUser?, mediaUrls: [String])
-    case toolCall(name: String, status: ToolCallStatus)
-    case systemMessage(String)
-}
-
-enum ToolCallStatus {
-    case pending
-    case approved
-    case rejected
-    case executed(success: Bool)
-}
-
-struct ConversationItem: Identifiable {
-    let id = UUID()
-    let timestamp: Date
-    let type: ConversationItemType
-}
-
 @Observable
 class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
-    // Permissions
-    var micPermissionGranted = false
-    var micPermissionStatus = "Checking..."
-
-    // Connection
-    var isConnected = false
-    var isConnecting = false
-    var connectionError: String?
-
-    // Audio
-    var isListening = false
-    var isGrokSpeaking = false
+    // State
+    var micPermission: MicPermissionState = .checking
+    var voiceSessionState: VoiceSessionState = .disconnected
+    var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
 
     // Conversation
@@ -74,6 +37,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // Configuration
     private let scenarioTopic = "Grok"
+    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz
 
     // X Auth - computed properties from AuthViewModel
     var isXAuthenticated: Bool {
@@ -88,7 +52,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         self.authViewModel = authViewModel
         super.init()
 
-        audioStreamer = try? AudioStreamer.make()
+        audioStreamer = try? AudioStreamer.make(xaiSampleRate: Double(serverSampleRate.rawValue))
         audioStreamer?.delegate = self
 
         checkPermissions()
@@ -101,25 +65,20 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         switch permissionStatus {
         case .granted:
-            micPermissionGranted = true
-            micPermissionStatus = "Granted"
+            micPermission = .granted
         case .denied:
-            micPermissionGranted = false
-            micPermissionStatus = "Denied"
+            micPermission = .denied
         case .undetermined:
-            micPermissionGranted = false
-            micPermissionStatus = "Not Requested"
+            micPermission = .checking
         @unknown default:
-            micPermissionGranted = false
-            micPermissionStatus = "Unknown"
+            micPermission = .denied
         }
     }
 
     func requestMicrophonePermission() {
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
-                self?.micPermissionGranted = granted
-                self?.micPermissionStatus = granted ? "Granted" : "Denied"
+                self?.micPermission = granted ? .granted : .denied
             }
         }
     }
@@ -127,45 +86,42 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Connection Management
 
     var canConnect: Bool {
-        return micPermissionGranted && !isConnected && !isConnecting
+        return micPermission.isGranted && !voiceSessionState.isConnected && !voiceSessionState.isConnecting
     }
 
     func connect() {
         guard canConnect else { return }
 
-        isConnecting = true
-        connectionError = nil
+        voiceSessionState = .connecting
 
         addSystemMessage("Connecting to XAI Voice...")
 
         // Initialize XAI service
-        xaiService = XAIVoiceService(sessionState: sessionState)
+        let xaiService = XAIVoiceService(sessionState: sessionState, sampleRate: serverSampleRate)
+        self.xaiService = xaiService
 
         // Set up callbacks (already on main actor)
-        xaiService?.onConnected = { [weak self] in
+        xaiService.onConnected = { [weak self] in
             Task { @MainActor in
-                self?.isConnected = true
-                self?.isConnecting = false
+                self?.voiceSessionState = .connected
                 self?.addSystemMessage("Connected to XAI Voice")
             }
         }
 
-        xaiService?.onMessageReceived = { [weak self] message in
+        xaiService.onMessageReceived = { [weak self] message in
             Task { @MainActor in
                 self?.handleXAIMessage(message)
             }
         }
 
-        xaiService?.onError = { [weak self] error in
+        xaiService.onError = { [weak self] error in
             Task { @MainActor in
                 AppLogger.voice.error("XAI Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopListening()
 
-                self?.isConnecting = false
-                self?.isConnected = false
-                self?.connectionError = error.localizedDescription
+                self?.voiceSessionState = .error(error.localizedDescription)
                 self?.addSystemMessage("Error: \(error.localizedDescription)")
             }
         }
@@ -173,53 +129,26 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Start connection
         Task {
             do {
-                // Execute tweet pre-fetch and XAI connection in parallel
+                // Execute user profile fetch and XAI connection in parallel
                 #if DEBUG
-                AppLogger.network.debug("===== TWEET API REQUEST =====")
-                AppLogger.network.debug("Query: \(self.scenarioTopic)")
+                AppLogger.network.debug("===== USER PROFILE REQUEST =====")
                 #endif
 
-                async let searchResult = {
-                    let toolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
-                    return await toolOrchestrator.executeTool(
-                        .searchRecentTweets,
-                        parameters: [
-                            "query": scenarioTopic,
-                            "max_results": 10,
-                            "expansions": "attachments.media_keys,author_id",
-                            "media.fields": "url,preview_image_url,type,width,height",
-                            "tweet.fields": "public_metrics,created_at",
-                            "user.fields": "name,username,profile_image_url"
-                        ]
-                    )
-                }()
+                let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
 
-                // Connect to XAI in parallel with tweet fetch
-                async let xaiConnection: () = xaiService!.connect()
+                // Connect to XAI in parallel with user profile fetch
+                async let connect: () = xaiService.connect()
+                async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
 
-                // Wait for both to complete
-                let (tweets, _) = try await (searchResult, xaiConnection)
-
-                #if DEBUG
-                AppLogger.network.debug("===== TWEET API RESPONSE =====")
-                AppLogger.network.debug("Success: \(tweets.success)")
-                if let response = tweets.response {
-                    AppLogger.network.debug("Response length: \(response.count) characters")
-                }
-                #endif
-
-                var contextString = ""
-                if tweets.success, let response = tweets.response {
-                    contextString = response
-                } else {
-                    contextString = "No recent tweets found."
-                }
+                // Await both operations
+                let (profileResult, _) = (await userProfileResult, try await connect)
 
                 // Configure session with tools (must be after connection)
                 let tools = XToolIntegration.getToolDefinitions()
-                try xaiService!.configureSession(tools: tools)
+                try xaiService.configureSession(tools: tools)
 
                 // Send context as a user message
+                let contextString = profileResult.success ? (profileResult.response ?? "No profile data") : "Failed to fetch profile"
                 let contextMessage = ConversationEvent(
                     type: .conversationItemCreate,
                     audio: nil,
@@ -234,7 +163,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                         role: "user",
                         content: [ConversationEvent.ContentItem(
                             type: "input_text",
-                            text: "SYSTEM CONTEXT: You have just searched for '\(self.scenarioTopic)' and found these recent tweets: \(contextString). Use this context for the conversation.",
+                            text: "SYSTEM CONTEXT: Here is your user profile information: \(contextString). Use this context for the conversation.",
                             transcript: nil
                         )]
                     ),
@@ -254,14 +183,12 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                     response: nil,
                     conversation: nil
                 )
-                try xaiService!.sendMessage(contextMessage)
+                try xaiService.sendMessage(contextMessage)
 
                 addSystemMessage("Session configured and ready")
 
             } catch {
-                self.isConnecting = false
-                self.isConnected = false
-                self.connectionError = error.localizedDescription
+                self.voiceSessionState = .error(error.localizedDescription)
                 self.addSystemMessage("Connection failed: \(error.localizedDescription)")
             }
         }
@@ -270,10 +197,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     func disconnect() {
         xaiService?.disconnect()
         audioStreamer?.stopStreaming()
-        isGrokSpeaking = false
-        isListening = false
-        isConnected = false
-        isConnecting = false
+        voiceSessionState = .disconnected
+        isSessionActivated = false
 
         addSystemMessage("Disconnected")
     }
@@ -282,32 +207,31 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         AppLogger.voice.info("Reconnecting...")
 
         // Stop any existing streams
-        isListening = false
         audioStreamer?.stopStreaming()
-        isGrokSpeaking = false
 
         // Disconnect existing service
         xaiService?.disconnect()
 
-        // Clear error state
-        connectionError = nil
-
-        // Reconnect
+        // Reconnect (this will set state to .connecting)
         connect()
     }
 
     // MARK: - Audio Streaming
 
     func startListening() throws {
-        guard isConnected else { return }
+        guard voiceSessionState.isConnected else { return }
 
-        isListening = true
+        isSessionActivated = true
+        voiceSessionState = .listening
         try audioStreamer?.startStreaming()
     }
 
     func stopListening() {
         audioStreamer?.stopStreaming()
-        isListening = false
+        // Return to connected state if still connected, otherwise keep current state
+        if voiceSessionState.isConnected {
+            voiceSessionState = .connected
+        }
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
 
@@ -316,7 +240,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     nonisolated func audioStreamerDidReceiveAudioData(_ data: Data) {
         Task { @MainActor in
             // Only send audio if we're connected
-            guard isConnected else {
+            guard voiceSessionState.isConnected else {
                 stopListening()
                 return
             }
@@ -405,7 +329,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         case .inputAudioBufferSpeechStarted:
             // User started speaking
             audioStreamer?.stopPlayback()
-            isGrokSpeaking = false
+            voiceSessionState = .listening
 
             // Handle truncation
             if let itemId = currentItemId, let startTime = currentAudioStartTime {
@@ -430,7 +354,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 } catch {
                     os_log("Failed to play audio: \(error)")
                 }
-                isGrokSpeaking = true
+                voiceSessionState = .grokSpeaking(itemId: currentItemId)
 
                 // Track start time of first audio chunk
                 if currentAudioStartTime == nil {

@@ -11,12 +11,11 @@ struct VoiceAssistantView: View {
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
-    @Namespace private var morphNamespace
 
-    let autoConnect: Bool
+    let shouldAutoconnect: Bool
 
     init(autoConnect: Bool = false, authViewModel: AuthViewModel) {
-        self.autoConnect = autoConnect
+        self.shouldAutoconnect = autoConnect
         self._viewModel = State(initialValue: VoiceAssistantViewModel(authViewModel: authViewModel))
     }
 
@@ -32,11 +31,11 @@ struct VoiceAssistantView: View {
                               .resizable()
                               .frame(width: 40, height: 40)
 
-                          if viewModel.isConnected {
+                          if viewModel.voiceSessionState.isConnected {
                               Circle()
                                   .fill(Color.green)
                                   .frame(width: 8, height: 8)
-                          } else if viewModel.isConnecting {
+                          } else if viewModel.voiceSessionState.isConnecting {
                               ProgressView()
                                   .scaleEffect(0.7)
                           }
@@ -60,11 +59,11 @@ struct VoiceAssistantView: View {
                 }
 
                 ToolbarItem(placement:.bottomBar) {
-                    if !viewModel.isListening {
+                    if !viewModel.isSessionActivated {
                         waveformButton(barCount: 5) {
                             // Reconnect if needed, then start listening
                             withAnimation {
-                                if !viewModel.isConnected {
+                                if !viewModel.voiceSessionState.isConnected {
                                     viewModel.reconnect()
                                 } else {
                                     try? viewModel.startListening() // TODO: handle error
@@ -73,14 +72,14 @@ struct VoiceAssistantView: View {
                         }
                     } else {
                         waveformButton(barCount: 37)
-                            .disabled(!viewModel.isConnected)
-                            .opacity(viewModel.isConnected ? 1.0 : 0.5)
+                            .disabled(!viewModel.voiceSessionState.isConnected)
+                            .opacity(viewModel.voiceSessionState.isConnected ? 1.0 : 0.5)
                             .frame(maxHeight: .infinity)
                     }
 
                 }
 
-                if viewModel.isListening {
+                if viewModel.isSessionActivated {
 
                     ToolbarSpacer(.fixed, placement: .bottomBar)
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
@@ -95,7 +94,7 @@ struct VoiceAssistantView: View {
                 viewModel.checkPermissions()
 
                 // Auto-connect if enabled and permissions granted
-                if autoConnect && viewModel.micPermissionGranted && !viewModel.isConnected && !viewModel.isConnecting {
+                if shouldAutoconnect && viewModel.micPermission.isGranted && !viewModel.voiceSessionState.isConnected && !viewModel.voiceSessionState.isConnecting {
                     // Small delay to ensure UI is ready
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.connect()
@@ -169,7 +168,6 @@ struct VoiceAssistantView: View {
             Image(systemName: "stop.fill")
                 .foregroundStyle(.white)
                 .font(.system(size: 20))
-//                .frame(width: 60, height: 75)
         }
     }
 }

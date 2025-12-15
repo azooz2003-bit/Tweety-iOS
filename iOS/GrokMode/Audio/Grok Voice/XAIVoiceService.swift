@@ -19,8 +19,8 @@ class XAIVoiceService {
     let sessionState: SessionState
 
     // Configuration
-    internal let voice = ConversationEvent.SessionConfig.Voice.Eve
-    internal var instructions = """
+    let voice = ConversationEvent.SessionConfig.Voice.Eve
+    var instructions = """
     You are Gerald McGrokMode, the most elite, high-energy, and swaggy Executive Assistant to the CEO of XAI.
     Your job is to BE THE BEST EXECUTIVE ASSISTANT TO GIVE the "CEO Morning Brief" with maximum CHARISMA,  EFFICIENCY, AND CONCISENESS
     
@@ -56,7 +56,7 @@ class XAIVoiceService {
     
     
     """
-    internal let sampleRate = ConversationEvent.AudioFormatType.SampleRate.twentyFourKHz // Common sample rate for voice
+    let sampleRate: ConversationEvent.AudioFormatType.SampleRate // Common sample rate for voice
 
     // Callbacks
     var onConnected: (() -> Void)?
@@ -64,8 +64,9 @@ class XAIVoiceService {
     var onMessageReceived: ((ConversationEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState) {
+    init(sessionState: SessionState, sampleRate: ConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
         self.sessionState = sessionState
+        self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
     }
 

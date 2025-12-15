@@ -5,6 +5,7 @@
 //  Created by Abdulaziz Albahar on 12/11/25.
 //
 
+import JSONSchema
 
 nonisolated
 struct ConversationEvent: Codable {
@@ -73,61 +74,12 @@ struct ConversationEvent: Codable {
         let type: String // "function"
         let name: String? // Optional - XAI API sometimes sends incomplete tool definitions
         let description: String? // Optional to handle API variations
-        let parameters: JSONValue? // JSON object of schema - optional to handle incomplete responses
+        let parameters: JSONSchema? // JSON Schema for parameters - optional to handle incomplete responses
 
         static let xSearch = ToolDefinition(type: "x_search", name: nil, description: nil, parameters: nil)
         static let webSearch = ToolDefinition(type: "web_search", name: nil, description: nil, parameters: nil)
     }
 
-    enum JSONValue: Codable {
-        case string(String)
-        case number(Double)
-        case bool(Bool)
-        case null
-        case array([JSONValue])
-        case object([String: JSONValue])
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let x = try? container.decode(String.self) {
-                self = .string(x)
-                return
-            }
-            if let x = try? container.decode(Double.self) {
-                self = .number(x)
-                return
-            }
-            if let x = try? container.decode(Bool.self) {
-                self = .bool(x)
-                return
-            }
-            if container.decodeNil() {
-                self = .null
-                return
-            }
-            if let x = try? container.decode([JSONValue].self) {
-                self = .array(x)
-                return
-            }
-            if let x = try? container.decode([String: JSONValue].self) {
-                self = .object(x)
-                return
-            }
-            throw DecodingError.typeMismatch(JSONValue.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for JSONValue"))
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            switch self {
-            case .string(let x): try container.encode(x)
-            case .number(let x): try container.encode(x)
-            case .bool(let x): try container.encode(x)
-            case .null: try container.encodeNil()
-            case .array(let x): try container.encode(x)
-            case .object(let x): try container.encode(x)
-            }
-        }
-    }
 
     struct AudioConfig: Codable {
         let input: AudioFormat?
