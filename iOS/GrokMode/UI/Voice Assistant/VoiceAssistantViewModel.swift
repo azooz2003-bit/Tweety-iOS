@@ -361,9 +361,9 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         case .responseOutputAudioDelta:
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
                 do {
-                    try audioStreamer?.playAudio(audioData) // TODO: handle error
+                    try audioStreamer?.playAudio(audioData)
                 } catch {
-                    os_log("Failed to play audio: \(error)")
+                    AppLogger.audio.error("Failed to play audio: \(error.localizedDescription)")
                 }
                 voiceSessionState = .grokSpeaking(itemId: currentItemId)
 
