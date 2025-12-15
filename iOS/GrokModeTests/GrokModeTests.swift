@@ -64,7 +64,7 @@ struct GrokModeTests {
         let service = XAIVoiceService(apiKey: apiKey)
 
         var sessionConfigured = false
-        var receivedMessages: [VoiceMessage] = []
+        var receivedMessages: [ConversationEvent] = []
 
         service.onMessageReceived = { message in
             receivedMessages.append(message)

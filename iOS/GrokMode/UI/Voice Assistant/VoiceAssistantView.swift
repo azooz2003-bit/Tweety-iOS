@@ -11,12 +11,11 @@ struct VoiceAssistantView: View {
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
-    @Namespace private var morphNamespace
 
-    let autoConnect: Bool
+    let shouldAutoconnect: Bool
 
     init(autoConnect: Bool = false, authViewModel: AuthViewModel) {
-        self.autoConnect = autoConnect
+        self.shouldAutoconnect = autoConnect
         self._viewModel = State(initialValue: VoiceAssistantViewModel(authViewModel: authViewModel))
     }
 
@@ -32,11 +31,11 @@ struct VoiceAssistantView: View {
                               .resizable()
                               .frame(width: 40, height: 40)
 
-                          if viewModel.isConnected {
+                          if viewModel.voiceSessionState.isConnected {
                               Circle()
                                   .fill(Color.green)
                                   .frame(width: 8, height: 8)
-                          } else if viewModel.isConnecting {
+                          } else if viewModel.voiceSessionState.isConnecting {
                               ProgressView()
                                   .scaleEffect(0.7)
                           }
@@ -45,28 +44,41 @@ struct VoiceAssistantView: View {
                   }
               }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button {
+                            Task {
+                                await viewModel.logoutX()
+                            }
+                        } label: {
+                            Label("Logout", image: "")
+                        }
+                    } label: {
+                        Label("", systemImage: "ellipsis")
+                    }
+                }
+
                 ToolbarItem(placement:.bottomBar) {
-                    if !viewModel.isListening {
+                    if !viewModel.isSessionActivated {
                         waveformButton(barCount: 5) {
                             // Reconnect if needed, then start listening
                             withAnimation {
-                                if !viewModel.isConnected {
+                                if !viewModel.voiceSessionState.isConnected {
                                     viewModel.reconnect()
                                 } else {
-                                    try? viewModel.startListening() // TODO: handle error
+                                    viewModel.startListening() // TODO: handle error
                                 }
                             }
                         }
                     } else {
                         waveformButton(barCount: 37)
-                            .disabled(!viewModel.isConnected)
-                            .opacity(viewModel.isConnected ? 1.0 : 0.5)
-                            .frame(maxHeight: .infinity)
+                            .disabled(!viewModel.voiceSessionState.isConnected)
+                            .opacity(viewModel.voiceSessionState.isConnected ? 1.0 : 0.5)
                     }
 
                 }
 
-                if viewModel.isListening {
+                if viewModel.isSessionActivated {
 
                     ToolbarSpacer(.fixed, placement: .bottomBar)
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
@@ -81,7 +93,7 @@ struct VoiceAssistantView: View {
                 viewModel.checkPermissions()
 
                 // Auto-connect if enabled and permissions granted
-                if autoConnect && viewModel.micPermissionGranted && !viewModel.isConnected && !viewModel.isConnecting {
+                if shouldAutoconnect && viewModel.micPermission.isGranted && !viewModel.voiceSessionState.isConnected && !viewModel.voiceSessionState.isConnecting {
                     // Small delay to ensure UI is ready
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.connect()
@@ -147,16 +159,13 @@ struct VoiceAssistantView: View {
     }
 
     private var stopButton: some View {
-        Button {
+        Button("Stop", systemImage: "stop.fill") {
             withAnimation {
                 viewModel.stopListening()
             }
-        } label: {
-            Image(systemName: "stop.fill")
-                .foregroundStyle(.white)
-                .font(.system(size: 20))
-//                .frame(width: 60, height: 75)
         }
+        .foregroundStyle(.white)
+        .font(.system(size: 20))
     }
 }
 

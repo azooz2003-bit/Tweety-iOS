@@ -7,59 +7,13 @@
 
 import SwiftUI
 import Foundation
-
-// MARK: - Models
+internal import os
 
 struct ToolCallData: Identifiable, Codable {
     let id: String
     let toolName: String
     let parameters: [String: String]
     let timestamp: Date
-}
-
-struct XTweet: Codable, Identifiable, Sendable {
-    let id: String
-    let text: String
-    let author_id: String?
-    let created_at: String?
-    let attachments: Attachments?
-    let public_metrics: PublicMetrics?
-
-    struct Attachments: Codable, Sendable {
-        let media_keys: [String]?
-    }
-
-    struct PublicMetrics: Codable, Sendable {
-        let retweet_count: Int?
-        let reply_count: Int?
-        let like_count: Int?
-        let quote_count: Int?
-        let impression_count: Int?  // Views
-        let bookmark_count: Int?
-    }
-}
-
-struct XUser: Codable, Identifiable, Sendable {
-    let id: String
-    let name: String
-    let username: String
-    let profile_image_url: String?
-}
-
-struct XMedia: Codable, Identifiable, Sendable {
-    let media_key: String
-    let type: String  // "photo", "video", "animated_gif"
-    let url: String?  // Image URL for photos
-    let preview_image_url: String?  // For videos/gifs
-    let width: Int?
-    let height: Int?
-
-    var id: String { media_key }
-
-    // Get the best URL to display (prefer url for photos, preview for videos)
-    nonisolated var displayUrl: String? {
-        url ?? preview_image_url
-    }
 }
 
 enum ToolResponseContent: Codable {
@@ -76,30 +30,34 @@ enum ToolResponseContent: Codable {
         
         // Try precise decoding based on tool name
         do {
-            switch toolName {
-            case "search_recent_tweets", "get_tweets":
-                // X API usually wraps lists in "data"
-                struct TweetResponse: Codable { let data: [XTweet] }
-                let response = try decoder.decode(TweetResponse.self, from: data)
-                return .tweets(response.data)
-                
-            case "create_tweet":
-                struct CreateTweetResponse: Codable { let data: XTweet }
-                let response = try decoder.decode(CreateTweetResponse.self, from: data)
-                return .tweets([response.data])
-                
-            case "get_user_by_username", "get_user_by_id":
-                 struct UserResponse: Codable { let data: XUser }
-                 let response = try decoder.decode(UserResponse.self, from: data)
-                 return .users([response.data])
+            if let tool = XTool(rawValue: toolName) {
+                switch tool {
+                case .searchRecentTweets, .getTweets:
+                    // X API usually wraps lists in "data"
+                    struct TweetResponse: Codable { let data: [XTweet] }
+                    let response = try decoder.decode(TweetResponse.self, from: data)
+                    return .tweets(response.data)
 
-            default:
-                break
+                case .createTweet:
+                    struct CreateTweetResponse: Codable { let data: XTweet }
+                    let response = try decoder.decode(CreateTweetResponse.self, from: data)
+                    return .tweets([response.data])
+
+                case .getUserByUsername, .getUserById:
+                     struct UserResponse: Codable { let data: XUser }
+                     let response = try decoder.decode(UserResponse.self, from: data)
+                     return .users([response.data])
+
+                default:
+                    break
+                }
             }
         } catch {
-            print("Failed to decode specific response for \(toolName): \(error)")
+            #if DEBUG
+            AppLogger.tools.debug("Failed to decode specific response for \(toolName): \(error.localizedDescription)")
+            #endif
         }
-        
+
         // Fallback or generic success check not needed as we default to raw
         return .raw(jsonString)
     }
@@ -117,8 +75,6 @@ struct ToolLog: Identifiable, Codable {
     var response: ToolResponseData?
 }
 
-// MARK: - State
-
 @Observable
 class SessionState {
     var toolCalls: [ToolLog] = []
@@ -134,7 +90,7 @@ class SessionState {
             id: id,
             toolName: toolName,
             parameters: stringParams,
-            timestamp: Date()
+            timestamp: Date.now
         )
         
         let log = ToolLog(call: callData, response: nil)

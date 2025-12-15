@@ -73,6 +73,11 @@ public actor XAuthService {
     private let handleKey = "x_user_handle"
     private let tokenExpiryKey = "x_token_expiry_date"
 
+    /// URL to exchange auth code for refresh & access token
+    private let tokenURL: URL = Config.baseXProxyURL.appending(path: "oauth2/token")
+    /// URL to get new access token using existing refesh token
+    private let refreshURL: URL = Config.baseXProxyURL.appending(path: "oauth2/refresh")
+
     // AsyncStream for state changes
     private let stateContinuation: AsyncStream<AuthState>.Continuation
     let authStateStream: AsyncStream<AuthState>
@@ -119,7 +124,7 @@ public actor XAuthService {
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: "grokmode://"),
-            URLQueryItem(name: "scope", value: "tweet.read tweet.write users.read dm.read dm.write offline.access"),
+            URLQueryItem(name: "scope", value: "tweet.read tweet.write tweet.moderate.write users.email users.read follows.read follows.write space.read mute.read mute.write like.read like.write list.read list.write block.read block.write bookmark.read bookmark.write media.write dm.read dm.write offline.access"),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256")
@@ -191,23 +196,19 @@ public actor XAuthService {
             throw AuthError.loginFailed("Internal error: missing code verifier")
         }
 
-        let url = URL(string: "https://api.twitter.com/2/oauth2/token")!
+        let url = self.tokenURL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
-        let bodyParams = [
+        let bodyParams: [String: String] = [
             "code": code,
-            "grant_type": "authorization_code",
-            "client_id": clientId,
             "redirect_uri": "grokmode://",
             "code_verifier": verifier
         ]
 
-        request.httpBody = bodyParams
-            .map { "\($0.key)=\($0.value)" }
-            .joined(separator: "&")
-            .data(using: .utf8)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: bodyParams)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -327,21 +328,17 @@ public actor XAuthService {
             throw AuthError.networkError("No refresh token available")
         }
 
-        let url = URL(string: "https://api.twitter.com/2/oauth2/token")!
+        let url = self.refreshURL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
-        let bodyParams = [
-            "refresh_token": refreshToken,
-            "grant_type": "refresh_token",
-            "client_id": clientId
+        let bodyParams: [String: String] = [
+            "refresh_token": refreshToken
         ]
 
-        request.httpBody = bodyParams
-            .map { "\($0.key)=\($0.value)" }
-            .joined(separator: "&")
-            .data(using: .utf8)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: bodyParams)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

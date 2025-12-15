@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import os
 
 struct ConversationItemView: View {
     let item: ConversationItem
@@ -119,16 +120,20 @@ struct TweetConversationCard: View {
     }
 
     private var tweetMetrics: TweetMetrics? {
-        print("\n🎨 ===== UI: RENDERING TWEET =====")
-        print("🎨 Tweet ID: \(tweet.id)")
-        print("🎨 Tweet Text: \(tweet.text.prefix(50))...")
-        print("🎨 Author: \(author?.username ?? "nil")")
-        print("🎨 Profile Image URL: \(author?.profile_image_url ?? "NIL")")
-        print("🎨 Media URLs: \(mediaUrls.count)")
-        print("🎨 Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
+        #if DEBUG
+        AppLogger.ui.debug("===== UI: RENDERING TWEET =====")
+        AppLogger.ui.debug("Tweet ID: \(tweet.id)")
+        AppLogger.ui.debug("Tweet Text: \(String(tweet.text.prefix(50)))...")
+        AppLogger.ui.debug("Author: \(author?.username ?? "nil")")
+        AppLogger.ui.debug("Profile Image URL: \(author?.profile_image_url ?? "NIL")")
+        AppLogger.ui.debug("Media URLs: \(mediaUrls.count)")
+        AppLogger.ui.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
+        #endif
 
         guard let publicMetrics = tweet.public_metrics else {
-            print("🎨 ✗ NO METRICS - Will not display engagement stats")
+            #if DEBUG
+            AppLogger.ui.debug("✗ NO METRICS - Will not display engagement stats")
+            #endif
             return nil
         }
 
@@ -138,21 +143,27 @@ struct TweetConversationCard: View {
             views: publicMetrics.impression_count ?? 0
         )
 
-        print("🎨 ✓ Metrics Created:")
-        print("🎨   - Likes: \(metrics.likes)")
-        print("🎨   - Retweets: \(metrics.retweets)")
-        print("🎨   - Views: \(metrics.views)")
+        #if DEBUG
+        AppLogger.ui.debug("✓ Metrics Created:")
+        AppLogger.ui.debug("  - Likes: \(metrics.likes)")
+        AppLogger.ui.debug("  - Retweets: \(metrics.retweets)")
+        AppLogger.ui.debug("  - Views: \(metrics.views)")
+        #endif
 
         return metrics
     }
 
     private var tweetUrl: String? {
         guard let username = author?.username else {
-            print("🎨 ✗ Cannot create URL - no author username")
+            #if DEBUG
+            AppLogger.ui.debug("✗ Cannot create URL - no author username")
+            #endif
             return nil
         }
         let url = "https://twitter.com/\(username)/status/\(tweet.id)"
-        print("🎨 ✓ Tweet URL: \(url)")
+        #if DEBUG
+        AppLogger.ui.debug("✓ Tweet URL: \(url)")
+        #endif
         return url
     }
 }

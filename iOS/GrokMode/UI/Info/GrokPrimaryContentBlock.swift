@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import os
 
 struct TweetMetrics {
     let likes: Int
@@ -24,20 +25,24 @@ struct GrokPrimaryContentBlock: View {
     let tweetUrl: String?  // Deep link URL
 
     var body: some View {
-        let _ = print("\n🖼️ ===== RENDERING TWEET CARD =====")
-        let _ = print("🖼️ Display Name: \(displayName)")
-        let _ = print("🖼️ Username: @\(username)")
-        let _ = print("🖼️ Profile Image URL: \(profileImageUrl ?? "NIL")")
-        let _ = print("🖼️ Text Length: \(text.count) chars")
-        let _ = print("🖼️ Media URLs: \(mediaUrls?.count ?? 0)")
-        let _ = print("🖼️ Metrics: \(metrics != nil ? "PRESENT" : "NIL")")
-        let _ = metrics.map { m in
-            print("🖼️   - Rendering Likes: \(m.likes)")
-            print("🖼️   - Rendering Retweets: \(m.retweets)")
-            print("🖼️   - Rendering Views: \(m.views)")
-        }
-        let _ = print("🖼️ Tweet URL: \(tweetUrl != nil ? "YES" : "NO")")
-        let _ = print("🖼️ ===========================\n")
+        #if DEBUG
+        let _ = {
+            AppLogger.ui.debug("===== RENDERING TWEET CARD =====")
+            AppLogger.ui.debug("Display Name: \(displayName)")
+            AppLogger.ui.debug("Username: @\(username)")
+            AppLogger.ui.debug("Profile Image URL: \(profileImageUrl ?? "NIL")")
+            AppLogger.ui.debug("Text Length: \(text.count) chars")
+            AppLogger.ui.debug("Media URLs: \(mediaUrls?.count ?? 0)")
+            AppLogger.ui.debug("Metrics: \(metrics != nil ? "PRESENT" : "NIL")")
+            metrics.map { m in
+                AppLogger.ui.debug("  - Rendering Likes: \(m.likes)")
+                AppLogger.ui.debug("  - Rendering Retweets: \(m.retweets)")
+                AppLogger.ui.debug("  - Rendering Views: \(m.views)")
+            }
+            AppLogger.ui.debug("Tweet URL: \(tweetUrl != nil ? "YES" : "NO")")
+            AppLogger.ui.debug("===========================")
+        }()
+        #endif
 
         VStack(alignment: .center, spacing: 12) {
             // Top: User icon and name centered and stacked
@@ -192,7 +197,6 @@ struct GrokPrimaryContentBlock: View {
         }
     }
 
-    // NEW: Media Grid View
     @ViewBuilder
     private func mediaGrid(urls: [String]) -> some View {
         let columns = urls.count == 1 ? 1 : 2

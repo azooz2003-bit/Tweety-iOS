@@ -10,50 +10,12 @@ import AVFoundation
 import Combine
 import OSLog
 
-struct PendingToolCall: Identifiable {
-    let id: String
-    let functionName: String
-    let arguments: String
-    let previewTitle: String
-    let previewContent: String
-}
-
-enum ConversationItemType {
-    case userSpeech(transcript: String)
-    case assistantSpeech(text: String)
-    case tweet(XTweet, author: XUser?, mediaUrls: [String])
-    case toolCall(name: String, status: ToolCallStatus)
-    case systemMessage(String)
-}
-
-enum ToolCallStatus {
-    case pending
-    case approved
-    case rejected
-    case executed(success: Bool)
-}
-
-struct ConversationItem: Identifiable {
-    let id = UUID()
-    let timestamp: Date
-    let type: ConversationItemType
-}
-
 @Observable
-@MainActor
 class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
-    // Permissions
-    var micPermissionGranted = false
-    var micPermissionStatus = "Checking..."
-
-    // Connection
-    var isConnected = false
-    var isConnecting = false
-    var connectionError: String?
-
-    // Audio
-    var isListening = false
-    var isGeraldSpeaking = false
+    // State
+    var micPermission: MicPermissionState = .checking
+    var voiceSessionState: VoiceSessionState = .disconnected
+    var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
 
     // Conversation
@@ -75,6 +37,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // Configuration
     private let scenarioTopic = "Grok"
+    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz
 
     // X Auth - computed properties from AuthViewModel
     var isXAuthenticated: Bool {
@@ -89,7 +52,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         self.authViewModel = authViewModel
         super.init()
 
-        audioStreamer = try? AudioStreamer.make()
+        audioStreamer = try? AudioStreamer.make(xaiSampleRate: Double(serverSampleRate.rawValue))
         audioStreamer?.delegate = self
 
         checkPermissions()
@@ -102,25 +65,20 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         switch permissionStatus {
         case .granted:
-            micPermissionGranted = true
-            micPermissionStatus = "Granted"
+            micPermission = .granted
         case .denied:
-            micPermissionGranted = false
-            micPermissionStatus = "Denied"
+            micPermission = .denied
         case .undetermined:
-            micPermissionGranted = false
-            micPermissionStatus = "Not Requested"
+            micPermission = .checking
         @unknown default:
-            micPermissionGranted = false
-            micPermissionStatus = "Unknown"
+            micPermission = .denied
         }
     }
 
     func requestMicrophonePermission() {
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
-                self?.micPermissionGranted = granted
-                self?.micPermissionStatus = granted ? "Granted" : "Denied"
+                self?.micPermission = granted ? .granted : .denied
             }
         }
     }
@@ -128,45 +86,42 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Connection Management
 
     var canConnect: Bool {
-        return micPermissionGranted && !isConnected && !isConnecting
+        return micPermission.isGranted && !voiceSessionState.isConnected && !voiceSessionState.isConnecting
     }
 
     func connect() {
         guard canConnect else { return }
 
-        isConnecting = true
-        connectionError = nil
+        voiceSessionState = .connecting
 
         addSystemMessage("Connecting to XAI Voice...")
 
         // Initialize XAI service
-        xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
+        let xaiService = XAIVoiceService(sessionState: sessionState, sampleRate: serverSampleRate)
+        self.xaiService = xaiService
 
         // Set up callbacks (already on main actor)
-        xaiService?.onConnected = { [weak self] in
+        xaiService.onConnected = { [weak self] in
             Task { @MainActor in
-                self?.isConnected = true
-                self?.isConnecting = false
+                self?.voiceSessionState = .connected
                 self?.addSystemMessage("Connected to XAI Voice")
             }
         }
 
-        xaiService?.onMessageReceived = { [weak self] message in
+        xaiService.onMessageReceived = { [weak self] message in
             Task { @MainActor in
                 self?.handleXAIMessage(message)
             }
         }
 
-        xaiService?.onError = { [weak self] error in
+        xaiService.onError = { [weak self] error in
             Task { @MainActor in
-                print("🔴 XAI Error: \(error.localizedDescription)")
+                AppLogger.voice.error("XAI Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopListening()
 
-                self?.isConnecting = false
-                self?.isConnected = false
-                self?.connectionError = error.localizedDescription
+                self?.voiceSessionState = .error(error.localizedDescription)
                 self?.addSystemMessage("Error: \(error.localizedDescription)")
             }
         }
@@ -174,64 +129,41 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Start connection
         Task {
             do {
-                // Execute tweet pre-fetch and XAI connection in parallel
-                print("🔍 ===== TWEET API REQUEST =====")
-                print("🔍 Query: \(scenarioTopic)")
+                // Execute user profile fetch and XAI connection in parallel
+                #if DEBUG
+                AppLogger.network.debug("===== USER PROFILE REQUEST =====")
+                #endif
 
-                async let searchResult = {
-                    let toolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
-                    return await toolOrchestrator.executeTool(
-                        .searchRecentTweets,
-                        parameters: [
-                            "query": scenarioTopic,
-                            "max_results": 10,
-                            "expansions": "attachments.media_keys,author_id",
-                            "media.fields": "url,preview_image_url,type,width,height",
-                            "tweet.fields": "public_metrics,created_at",
-                            "user.fields": "name,username,profile_image_url"
-                        ]
-                    )
-                }()
+                let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
 
-                // Connect to XAI in parallel with tweet fetch
-                async let xaiConnection: () = xaiService!.connect()
+                // Connect to XAI in parallel with user profile fetch
+                async let connect: () = xaiService.connect()
+                async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
 
-                // Wait for both to complete
-                let (tweets, _) = try await (searchResult, xaiConnection)
-
-                print("🔍 ===== TWEET API RESPONSE =====")
-                print("🔍 Success: \(tweets.success)")
-                if let response = tweets.response {
-                    print("🔍 Response length: \(response.count) characters")
-                }
-
-                var contextString = ""
-                if tweets.success, let response = tweets.response {
-                    contextString = response
-                } else {
-                    contextString = "No recent tweets found."
-                }
+                // Await both operations
+                let (profileResult, _) = (await userProfileResult, try await connect)
 
                 // Configure session with tools (must be after connection)
                 let tools = XToolIntegration.getToolDefinitions()
-                try xaiService!.configureSession(tools: tools)
+                try xaiService.configureSession(tools: tools)
 
                 // Send context as a user message
-                let contextMessage = VoiceMessage(
-                    type: "conversation.item.create",
+                let contextString = profileResult.success ? (profileResult.response ?? "No profile data") : "Failed to fetch profile"
+                let contextMessage = ConversationEvent(
+                    type: .conversationItemCreate,
                     audio: nil,
                     text: nil,
                     delta: nil,
                     session: nil,
-                    item: VoiceMessage.ConversationItem(
+                    item: ConversationEvent.ConversationItem(
                         id: nil,
                         object: nil,
                         type: "message",
                         status: nil,
                         role: "user",
-                        content: [VoiceMessage.ContentItem(
+                        content: [ConversationEvent.ContentItem(
                             type: "input_text",
-                            text: "SYSTEM CONTEXT: You have just searched for '\(self.scenarioTopic)' and found these recent tweets: \(contextString). Use this context for the conversation.",
+                            text: "SYSTEM CONTEXT: Here is your user profile information: \(contextString). Use this context for the conversation.",
                             transcript: nil
                         )]
                     ),
@@ -251,14 +183,12 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                     response: nil,
                     conversation: nil
                 )
-                try xaiService!.sendMessage(contextMessage)
+                try xaiService.sendMessage(contextMessage)
 
                 addSystemMessage("Session configured and ready")
 
             } catch {
-                self.isConnecting = false
-                self.isConnected = false
-                self.connectionError = error.localizedDescription
+                self.voiceSessionState = .error(error.localizedDescription)
                 self.addSystemMessage("Connection failed: \(error.localizedDescription)")
             }
         }
@@ -267,44 +197,52 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     func disconnect() {
         xaiService?.disconnect()
         audioStreamer?.stopStreaming()
-        isGeraldSpeaking = false
-        isListening = false
-        isConnected = false
-        isConnecting = false
+        voiceSessionState = .disconnected
+        isSessionActivated = false
 
         addSystemMessage("Disconnected")
     }
 
     func reconnect() {
-        print("🔄 Reconnecting...")
+        AppLogger.voice.info("Reconnecting...")
 
         // Stop any existing streams
-        isListening = false
         audioStreamer?.stopStreaming()
-        isGeraldSpeaking = false
 
         // Disconnect existing service
         xaiService?.disconnect()
 
-        // Clear error state
-        connectionError = nil
-
-        // Reconnect
+        // Reconnect (this will set state to .connecting)
         connect()
     }
 
     // MARK: - Audio Streaming
 
-    func startListening() throws {
-        guard isConnected else { return }
+    func startListening() {
+        guard voiceSessionState.isConnected else { return }
 
-        isListening = true
-        try audioStreamer?.startStreaming()
+        // Set state immediately for instant UI feedback
+        isSessionActivated = true
+        voiceSessionState = .listening
+
+        // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
+        audioStreamer?.startStreamingAsync { [weak self] error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
+                    self?.voiceSessionState = .error("Microphone access failed")
+                }
+            }
+        }
     }
 
     func stopListening() {
+        isSessionActivated = false
         audioStreamer?.stopStreaming()
-        isListening = false
+        // Return to connected state if still connected, otherwise keep current state
+        if voiceSessionState.isConnected {
+            voiceSessionState = .connected
+        }
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
 
@@ -313,7 +251,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     nonisolated func audioStreamerDidReceiveAudioData(_ data: Data) {
         Task { @MainActor in
             // Only send audio if we're connected
-            guard isConnected else {
+            guard voiceSessionState.isConnected else {
                 stopListening()
                 return
             }
@@ -321,7 +259,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
             do {
                 try xaiService?.sendAudioChunk(data)
             } catch {
-                print("❌ Failed to send audio chunk: \(error)")
+                AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
                 // Stop streaming to prevent error cascade
                 stopListening()
             }
@@ -348,33 +286,33 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - Message Handling
 
-    private func handleXAIMessage(_ message: VoiceMessage) {
+    private func handleXAIMessage(_ message: ConversationEvent) {
         switch message.type {
-        case "conversation.created":
+        case .conversationCreated:
             // Session initialized
             break
 
-        case "session.updated":
+        case .sessionUpdated:
             // Session configured
             break
 
-        case "response.created":
+        case .responseCreated:
             // Assistant started responding
             break
 
-        case "response.function_call_arguments.done":
+        case .responseFunctionCallArgumentsDone:
             if let callId = message.call_id,
                let name = message.name,
                let args = message.arguments {
-                let toolCall = VoiceMessage.ToolCall(
+                let toolCall = ConversationEvent.ToolCall(
                     id: callId,
                     type: "function",
-                    function: VoiceMessage.FunctionCall(name: name, arguments: args)
+                    function: ConversationEvent.FunctionCall(name: name, arguments: args)
                 )
                 handleToolCall(toolCall)
             }
 
-        case "response.output_item.added":
+        case .responseOutputItemAdded:
             if let item = message.item, let toolCalls = item.tool_calls {
                 for toolCall in toolCalls {
                     handleToolCall(toolCall)
@@ -387,7 +325,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 currentAudioStartTime = nil
             }
 
-        case "response.done":
+        case .responseDone:
             // Check for tool calls in completed response
             if let output = message.response?.output {
                 for item in output {
@@ -399,10 +337,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 }
             }
 
-        case "input_audio_buffer.speech_started":
+        case .inputAudioBufferSpeechStarted:
             // User started speaking
             audioStreamer?.stopPlayback()
-            isGeraldSpeaking = false
+            voiceSessionState = .listening
 
             // Handle truncation
             if let itemId = currentItemId, let startTime = currentAudioStartTime {
@@ -412,22 +350,22 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 currentAudioStartTime = nil
             }
 
-        case "input_audio_buffer.speech_stopped":
+        case .inputAudioBufferSpeechStopped:
             // User stopped speaking
             break
 
-        case "input_audio_buffer.committed":
+        case .inputAudioBufferCommitted:
             // Audio sent for processing
             break
 
-        case "response.output_audio.delta":
+        case .responseOutputAudioDelta:
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
                 do {
-                    try audioStreamer?.playAudio(audioData) // TODO: handle error
+                    try audioStreamer?.playAudio(audioData)
                 } catch {
-                    os_log("Failed to play audio: \(error)")
+                    AppLogger.audio.error("Failed to play audio: \(error.localizedDescription)")
                 }
-                isGeraldSpeaking = true
+                voiceSessionState = .grokSpeaking(itemId: currentItemId)
 
                 // Track start time of first audio chunk
                 if currentAudioStartTime == nil {
@@ -435,7 +373,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 }
             }
 
-        case "error":
+        case .error:
             if let errorText = message.text {
                 addSystemMessage("Error: \(errorText)")
             }
@@ -448,12 +386,16 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Tool Handling
 
     private func isSafeTool(_ functionName: String) -> Bool {
+        guard let _ = XTool(rawValue: functionName) else {
+            return true
+        }
+
         return functionName.hasPrefix("get") ||
                functionName.hasPrefix("search") ||
                functionName.hasPrefix("list")
     }
 
-    private func handleToolCall(_ toolCall: VoiceMessage.ToolCall) {
+    private func handleToolCall(_ toolCall: ConversationEvent.ToolCall) {
         let functionName = toolCall.function.name
 
         if isSafeTool(functionName) {
@@ -475,10 +417,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         guard let toolCall = pendingToolCall else { return }
         pendingToolCall = nil
 
-        let voiceToolCall = VoiceMessage.ToolCall(
+        let voiceToolCall = ConversationEvent.ToolCall(
             id: toolCall.id,
             type: "function",
-            function: VoiceMessage.FunctionCall(
+            function: ConversationEvent.FunctionCall(
                 name: toolCall.functionName,
                 arguments: toolCall.arguments
             )
@@ -499,7 +441,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         pendingToolCall = nil
     }
 
-    private func executeTool(_ toolCall: VoiceMessage.ToolCall) {
+    private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
             guard let data = toolCall.function.arguments.data(using: .utf8),
                   let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -553,7 +495,9 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         if let lastItem = conversationItems.last,
            case .systemMessage(let lastMessage) = lastItem.type,
            lastMessage == message {
-            print("⚠️ Skipping duplicate system message: \(message)")
+            #if DEBUG
+            AppLogger.voice.debug("Skipping duplicate system message: \(message)")
+            #endif
             return
         }
 
@@ -564,12 +508,14 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Try to parse tweets from JSON response
         guard let data = response.data(using: .utf8) else { return }
 
+        #if DEBUG
         // DEBUG: Log raw response
-        print("🔍 RAW TWEET RESPONSE (first 500 chars):")
-        print(response.prefix(500))
+        AppLogger.network.debug("RAW TWEET RESPONSE (first 500 chars):")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, String(response.prefix(500)))
+        #endif
 
         do {
-            if toolName == "search_recent_tweets" || toolName == "search_all_tweets" || toolName == "get_tweets" || toolName == "get_tweet" || toolName == "get_user_liked_tweets" {
+            if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets {
                 struct TweetResponse: Codable {
                     let data: [XTweet]?
                     let includes: Includes?
@@ -582,69 +528,85 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
                 let tweetResponse = try JSONDecoder().decode(TweetResponse.self, from: data)
 
-                print("📦 ===== PARSED TWEET DATA =====")
-                print("📦 Total tweets: \(tweetResponse.data?.count ?? 0)")
-                print("📦 Total users in includes: \(tweetResponse.includes?.users?.count ?? 0)")
-                print("📦 Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
+                #if DEBUG
+                AppLogger.network.debug("===== PARSED TWEET DATA =====")
+                AppLogger.network.debug("Total tweets: \(tweetResponse.data?.count ?? 0)")
+                AppLogger.network.debug("Total users in includes: \(tweetResponse.includes?.users?.count ?? 0)")
+                AppLogger.network.debug("Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
+                #endif
 
                 if let tweets = tweetResponse.data {
                     for (index, tweet) in tweets.enumerated() {
-                        print("\n📊 ===== TWEET #\(index + 1) =====")
-                        print("📊 ID: \(tweet.id)")
-                        print("📊 Text: \(tweet.text.prefix(50))...")
-                        print("📊 Author ID: \(tweet.author_id ?? "nil")")
-                        print("📊 Created At: \(tweet.created_at ?? "nil")")
+                        #if DEBUG
+                        AppLogger.network.debug("===== TWEET #\(index + 1) =====")
+                        AppLogger.network.debug("ID: \(tweet.id)")
+                        AppLogger.network.debug("Text: \(String(tweet.text.prefix(50)))...")
+                        AppLogger.network.debug("Author ID: \(tweet.author_id ?? "nil")")
+                        AppLogger.network.debug("Created At: \(tweet.created_at ?? "nil")")
+                        #endif
 
                         let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                        print("📊 Author Found: \(author != nil)")
+                        #if DEBUG
+                        AppLogger.network.debug("Author Found: \(author != nil)")
                         if let author = author {
-                            print("📊   - Name: \(author.name)")
-                            print("📊   - Username: @\(author.username)")
+                            AppLogger.network.debug("  - Name: \(author.name)")
+                            AppLogger.network.debug("  - Username: @\(author.username)")
                         }
 
                         // Log attachments
                         if let attachments = tweet.attachments {
-                            print("📊 Attachments: \(attachments.media_keys?.count ?? 0) media items")
+                            AppLogger.network.debug("Attachments: \(attachments.media_keys?.count ?? 0) media items")
                         } else {
-                            print("📊 Attachments: none")
+                            AppLogger.network.debug("Attachments: none")
                         }
 
                         // Log metrics in detail
-                        print("📊 Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
+                        AppLogger.network.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
                         if let metrics = tweet.public_metrics {
-                            print("📊   ✓ Like Count: \(metrics.like_count ?? 0)")
-                            print("📊   ✓ Retweet Count: \(metrics.retweet_count ?? 0)")
-                            print("📊   ✓ Reply Count: \(metrics.reply_count ?? 0)")
-                            print("📊   ✓ Quote Count: \(metrics.quote_count ?? 0)")
-                            print("📊   ✓ Impression Count (Views): \(metrics.impression_count ?? 0)")
-                            print("📊   ✓ Bookmark Count: \(metrics.bookmark_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Like Count: \(metrics.like_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Retweet Count: \(metrics.retweet_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Reply Count: \(metrics.reply_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Quote Count: \(metrics.quote_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Impression Count (Views): \(metrics.impression_count ?? 0)")
+                            AppLogger.network.debug("  ✓ Bookmark Count: \(metrics.bookmark_count ?? 0)")
                         } else {
-                            print("📊   ✗ NO METRICS IN RESPONSE")
+                            AppLogger.network.debug("  ✗ NO METRICS IN RESPONSE")
                         }
+                        #endif
 
                         // Extract media URLs for this tweet
                         var mediaUrls: [String] = []
                         if let mediaKeys = tweet.attachments?.media_keys,
                            let allMedia = tweetResponse.includes?.media {
-                            print("📊 Processing \(mediaKeys.count) media keys...")
+                            #if DEBUG
+                            AppLogger.network.debug("Processing \(mediaKeys.count) media keys...")
+                            #endif
                             for mediaKey in mediaKeys {
                                 if let media = allMedia.first(where: { $0.media_key == mediaKey }),
                                    let displayUrl = media.displayUrl {
                                     mediaUrls.append(displayUrl)
-                                    print("📊   ✓ Media URL: \(displayUrl.prefix(50))...")
+                                    #if DEBUG
+                                    AppLogger.network.debug("  ✓ Media URL: \(String(displayUrl.prefix(50)))...")
+                                    #endif
                                 }
                             }
                         }
-                        print("📊 Total Media URLs: \(mediaUrls.count)")
+                        #if DEBUG
+                        AppLogger.network.debug("Total Media URLs: \(mediaUrls.count)")
+                        #endif
 
                         addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
-                        print("📊 ✓ Tweet #\(index + 1) added to conversation")
+                        #if DEBUG
+                        AppLogger.network.debug("✓ Tweet #\(index + 1) added to conversation")
+                        #endif
                     }
                 }
-                print("\n📦 ===== PARSING COMPLETE =====\n")
+                #if DEBUG
+                AppLogger.network.debug("===== PARSING COMPLETE =====")
+                #endif
             }
         } catch {
-            print("Failed to parse tweets: \(error)")
+            AppLogger.network.error("Failed to parse tweets: \(error.localizedDescription)")
         }
     }
 
