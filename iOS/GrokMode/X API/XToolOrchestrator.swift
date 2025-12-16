@@ -742,6 +742,8 @@ actor XToolOrchestrator {
             }
             path = "/2/media/\(mediaKey)"
             method = .get
+        case .confirmAction, .cancelAction:
+            throw XToolCallError.init(code: "999", message: "Not expected to handle confirmation/cancellation of actions in orchestrator.")
         }
 
         // Build URL

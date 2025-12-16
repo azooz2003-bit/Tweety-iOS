@@ -371,6 +371,13 @@ class VoiceAssistantViewModel: NSObject {
 
             addConversationItem(.toolCall(name: functionName, status: .pending))
 
+            // Tell Grok that confirmation is needed (include the tool call ID)
+            try? xaiService?.sendToolOutput(
+                toolCallId: toolCall.id,
+                output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
+                success: false
+            )
+
             // Fetch rich preview asynchronously
             Task { @MainActor in
                 let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
@@ -420,6 +427,62 @@ class VoiceAssistantViewModel: NSObject {
 
     private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
+            // Handle voice confirmation tools specially
+            if let tool = XTool(rawValue: toolCall.function.name) {
+                switch tool {
+                case .confirmAction:
+                    // Parse the tool_call_id parameter
+                    let originalToolCallId: String
+                    if let data = toolCall.function.arguments.data(using: .utf8),
+                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let toolCallId = params["tool_call_id"] as? String {
+                        originalToolCallId = toolCallId
+                    } else {
+                        originalToolCallId = "unknown"
+                    }
+
+                    approveToolCall()
+
+                    // Send success response to Grok with original tool call ID
+                    try? xaiService?.sendToolOutput(
+                        toolCallId: toolCall.id,
+                        output: "User confirmed the action. Original tool call ID: \(originalToolCallId). The action is now being executed.",
+                        success: true
+                    )
+
+                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    try? xaiService?.createResponse()
+                    return
+
+                case .cancelAction:
+                    // Parse the tool_call_id parameter
+                    let originalToolCallId: String
+                    if let data = toolCall.function.arguments.data(using: .utf8),
+                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let toolCallId = params["tool_call_id"] as? String {
+                        originalToolCallId = toolCallId
+                    } else {
+                        originalToolCallId = "unknown"
+                    }
+
+                    rejectToolCall()
+
+                    // Send success response to Grok with original tool call ID
+                    try? xaiService?.sendToolOutput(
+                        toolCallId: toolCall.id,
+                        output: "User cancelled the action. Original tool call ID: \(originalToolCallId). The action was not executed.",
+                        success: true
+                    )
+
+                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    try? xaiService?.createResponse()
+                    return
+
+                default:
+                    break
+                }
+            }
+
             guard let data = toolCall.function.arguments.data(using: .utf8),
                   let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 return
