@@ -352,70 +352,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "ids": .array(description: "Tweet IDs", items: .string()),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["ids"]
             )
@@ -432,70 +368,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
                     "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["query"]
             )
@@ -512,70 +384,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
                     "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["query"]
             )
@@ -674,10 +482,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUserById:
             return .object(
                 properties: [
-                    "id": .string(description: "The user ID"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "id": .string(description: "The user ID")
                 ],
                 required: ["id"]
             )
@@ -685,10 +490,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUserByUsername:
             return .object(
                 properties: [
-                    "username": .string(description: "The username without @"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "username": .string(description: "The username without @")
                 ],
                 required: ["username"]
             )
@@ -1471,7 +1273,12 @@ extension XTool {
             if let replyObj = params["reply"] as? [String: Any],
                let replyToId = replyObj["in_reply_to_tweet_id"] as? String {
                 // Fetch the tweet being replied to with author info
-                let result = await orchestrator.executeTool(.getTweet, parameters: ["id": replyToId])
+                let result = await orchestrator.executeTool(.getTweet, parameters: [
+                    "id": replyToId,
+                    "tweet.fields": ["text", "author_id"],
+                    "expansions": ["author_id"],
+                    "user.fields": ["username"]
+                ])
 
                 if result.success,
                    let responseData = result.response?.data(using: .utf8),
@@ -1502,7 +1309,12 @@ extension XTool {
             let quoteId = params["quote_tweet_id"] as? String ?? ""
 
             // Fetch the tweet being quoted with author info
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": quoteId])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": quoteId,
+                "tweet.fields": ["text", "author_id"],
+                "expansions": ["author_id"],
+                "user.fields": ["username"]
+            ])
 
             if result.success,
                let responseData = result.response?.data(using: .utf8),
@@ -1541,7 +1353,10 @@ extension XTool {
             let id = params["id"] as? String ?? ""
 
             // Fetch the tweet to be deleted
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
 
             if result.success,
                let responseData = result.response?.data(using: .utf8),
@@ -1556,7 +1371,10 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be liked
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
 
             if result.success,
                let responseData = result.response?.data(using: .utf8),
@@ -1572,7 +1390,10 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be unliked
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
 
             if result.success,
                let responseData = result.response?.data(using: .utf8),
@@ -1588,7 +1409,10 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be retweeted
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
 
             if result.success,
                let responseData = result.response?.data(using: .utf8),
@@ -1604,7 +1428,10 @@ extension XTool {
             let id = params["source_tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be unretweeted
-            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
 
             if result.success,
             let responseData = result.response?.data(using: .utf8),
@@ -1626,6 +1453,6 @@ extension XTool {
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .searchAllTweets, .getUserById, .getUserByUsername]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .getUserById, .getUserByUsername]
     }
 }

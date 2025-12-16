@@ -362,7 +362,13 @@ class VoiceAssistantViewModel: NSObject {
 
         case .requiresConfirmation:
             // Show placeholder immediately
-            pendingToolCall = nil
+            pendingToolCall = PendingToolCall(
+                id: toolCall.id,
+                functionName: functionName,
+                arguments: toolCall.function.arguments,
+                previewTitle: "Allow \(functionName)?",
+                previewContent: "Loading preview..."
+            )
 
             addConversationItem(.toolCall(name: functionName, status: .pending))
 
