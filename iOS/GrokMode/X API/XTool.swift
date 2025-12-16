@@ -891,14 +891,14 @@ enum XTool: String, CaseIterable, Identifiable {
                         required: ["text"]
                     )
                 ],
-                required: ["conversation_type", "message"]
+                required: ["conversation_type", "message", "participant_ids"]
             )
 
         case .sendDMToConversation:
             return .object(
                 properties: [
                     "dm_conversation_id": .string(description: "DM conversation ID"),
-                    "text": .string(description: "Message text"),
+                    "text": .string(description: "Message text, must not be empty"),
                     "attachments": .array(
                         description: "Media attachments",
                         items: .object(
@@ -908,14 +908,14 @@ enum XTool: String, CaseIterable, Identifiable {
                         )
                     )
                 ],
-                required: ["dm_conversation_id"]
+                required: ["dm_conversation_id", "text"]
             )
 
         case .sendDMToParticipant:
             return .object(
                 properties: [
                     "participant_id": .string(description: "Recipient user ID"),
-                    "text": .string(description: "Message text"),
+                    "text": .string(description: "Message text, must not be empty."),
                     "attachments": .array(
                         description: "Media attachments", items: .object(
                             properties: [
@@ -924,7 +924,7 @@ enum XTool: String, CaseIterable, Identifiable {
                         )
                     )
                 ],
-                required: ["participant_id"]
+                required: ["participant_id", "text"]
             )
 
         case .getDMEvents:
