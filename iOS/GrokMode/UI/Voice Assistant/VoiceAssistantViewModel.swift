@@ -21,8 +21,13 @@ class VoiceAssistantViewModel: NSObject {
     // Conversation
     var conversationItems: [ConversationItem] = []
 
-    // Tool Confirmation
-    var pendingToolCall: PendingToolCall?
+    // Tool Confirmation Queue
+    private var pendingToolCallQueue: [PendingToolCall] = []
+
+    // Currently focused pending tool call (first in queue)
+    var currentPendingToolCall: PendingToolCall? {
+        pendingToolCallQueue.first
+    }
 
     // MARK: - Private Properties
 
@@ -360,32 +365,38 @@ class VoiceAssistantViewModel: NSObject {
             executeTool(toolCall)
 
         case .requiresConfirmation:
-            // Show placeholder immediately
-            pendingToolCall = PendingToolCall(
+            // Check if this will be the focused tool (first in queue)
+            let isFirstInQueue = pendingToolCallQueue.isEmpty
+
+            // Add to queue with placeholder
+            let newPendingTool = PendingToolCall(
                 id: toolCall.id,
                 functionName: functionName,
                 arguments: toolCall.function.arguments,
                 previewTitle: "Allow \(functionName)?",
                 previewContent: "Loading preview..."
             )
+            pendingToolCallQueue.append(newPendingTool)
 
             addConversationItem(.toolCall(name: functionName, status: .pending))
 
-            // Tell Grok that confirmation is needed (include the tool call ID)
-            try? xaiService?.sendToolOutput(
-                toolCallId: toolCall.id,
-                output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
-                success: false
-            )
+            // Only notify Grok if this is the focused (first) tool
+            if isFirstInQueue {
+                try? xaiService?.sendToolOutput(
+                    toolCallId: toolCall.id,
+                    output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
+                    success: false
+                )
+            }
 
-            // Fetch rich preview asynchronously
+            // Fetch rich preview asynchronously to update UI
             Task { @MainActor in
                 let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
                 let preview = await tool.generatePreview(from: toolCall.function.arguments, orchestrator: xToolOrchestrator)
 
-                // Update with rich preview if still pending
-                if let current = pendingToolCall, current.id == toolCall.id {
-                    pendingToolCall = PendingToolCall(
+                // Update with rich preview if still in queue
+                if let index = pendingToolCallQueue.firstIndex(where: { $0.id == toolCall.id }) {
+                    pendingToolCallQueue[index] = PendingToolCall(
                         id: toolCall.id,
                         functionName: functionName,
                         arguments: toolCall.function.arguments,
@@ -398,9 +409,9 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     func approveToolCall() {
-        guard let toolCall = pendingToolCall else { return }
-        pendingToolCall = nil
+        guard let toolCall = pendingToolCallQueue.first else { return }
 
+        // Execute the approved tool
         let voiceToolCall = ConversationEvent.ToolCall(
             id: toolCall.id,
             type: "function",
@@ -410,10 +421,13 @@ class VoiceAssistantViewModel: NSObject {
             )
         )
         executeTool(voiceToolCall)
+
+        // Move to next tool in queue
+        moveToNextPendingTool()
     }
 
     func rejectToolCall() {
-        guard let toolCall = pendingToolCall else { return }
+        guard let toolCall = pendingToolCallQueue.first else { return }
 
         try? xaiService?.sendToolOutput(
             toolCallId: toolCall.id,
@@ -422,7 +436,23 @@ class VoiceAssistantViewModel: NSObject {
         )
 
         addConversationItem(.toolCall(name: toolCall.functionName, status: .rejected))
-        pendingToolCall = nil
+
+        // Move to next tool in queue
+        moveToNextPendingTool()
+    }
+
+    private func moveToNextPendingTool() {
+        // Remove the current focused tool
+        pendingToolCallQueue.removeFirst()
+
+        // Notify Grok about the next focused tool if there is one
+        if let nextTool = pendingToolCallQueue.first {
+            try? xaiService?.sendToolOutput(
+                toolCallId: nextTool.id,
+                output: "This action requires user confirmation. Tool call ID: \(nextTool.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
+                success: false
+            )
+        }
     }
 
     private func executeTool(_ toolCall: ConversationEvent.ToolCall) {

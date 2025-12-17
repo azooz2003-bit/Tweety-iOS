@@ -96,7 +96,7 @@ struct VoiceAssistantView: View {
             }
         }
         .sheet(item: Binding(
-            get: { viewModel.pendingToolCall },
+            get: { viewModel.currentPendingToolCall },
             set: { if $0 == nil { viewModel.rejectToolCall() } }
         )) { toolCall in
             ToolConfirmationSheet(
