@@ -51,7 +51,7 @@ struct VoiceAssistantView: View {
                                 await viewModel.logoutX()
                             }
                         } label: {
-                            Label("Logout", image: "")
+                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     } label: {
                         Label("", systemImage: "ellipsis")
