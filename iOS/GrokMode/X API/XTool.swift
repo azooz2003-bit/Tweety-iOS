@@ -1387,6 +1387,402 @@ extension XTool {
             }
             return (title: "Undo Retweet", content: "↩️ Undo retweet?")
 
+        // MARK: - Direct Messages
+        case .sendDMToParticipant:
+            let text = params["text"] as? String ?? ""
+            let participantId = params["participant_id"] as? String ?? ""
+
+            // Fetch the user being messaged
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": participantId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String {
+                return (title: "Send DM to @\(username)", content: "💬 \"\(text)\"")
+            }
+            return (title: "Send Direct Message", content: "💬 \"\(text)\"")
+
+        case .sendDMToConversation:
+            let text = params["text"] as? String ?? ""
+            let conversationId = params["dm_conversation_id"] as? String ?? ""
+            return (title: "Send DM", content: "💬 \"\(text)\"\n\nConversation ID: \(conversationId)")
+
+        case .createDMConversation:
+            let text: String
+            if let messageObj = params["message"] as? [String: Any],
+               let messageText = messageObj["text"] as? String {
+                text = messageText
+            } else {
+                text = ""
+            }
+
+            let participantIds = params["participant_ids"] as? [String] ?? []
+            let conversationType = params["conversation_type"] as? String ?? "DirectMessage"
+
+            if conversationType == "Group" {
+                return (title: "Create Group DM", content: "💬 \"\(text)\"\n\nWith \(participantIds.count) participants")
+            } else if let participantId = participantIds.first {
+                // Fetch the user being messaged
+                let result = await orchestrator.executeTool(.getUserById, parameters: [
+                    "id": participantId
+                ])
+
+                if result.success,
+                   let responseData = result.response?.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                   let userData = json["data"] as? [String: Any],
+                   let username = userData["username"] as? String {
+                    return (title: "New DM to @\(username)", content: "💬 \"\(text)\"")
+                }
+            }
+            return (title: "Create DM Conversation", content: "💬 \"\(text)\"")
+
+        case .deleteDMEvent:
+            let eventId = params["dm_event_id"] as? String ?? ""
+            return (title: "Delete Message", content: "🗑️ Delete this DM?\n\nEvent ID: \(eventId)")
+
+        // MARK: - User Actions
+        case .followUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be followed
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Follow @\(username)", content: "➕ \(name)")
+            }
+            return (title: "Follow User", content: "➕ Follow this user?")
+
+        case .unfollowUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unfollowed
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unfollow @\(username)", content: "➖ \(name)")
+            }
+            return (title: "Unfollow User", content: "➖ Unfollow this user?")
+
+        case .muteUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be muted
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Mute @\(username)", content: "🔇 \(name)")
+            }
+            return (title: "Mute User", content: "🔇 Mute this user?")
+
+        case .unmuteUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unmuted
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unmute @\(username)", content: "🔊 \(name)")
+            }
+            return (title: "Unmute User", content: "🔊 Unmute this user?")
+
+        case .blockUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be blocked
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Block @\(username)", content: "🚫 \(name)")
+            }
+            return (title: "Block User", content: "🚫 Block this user?")
+
+        case .unblockUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unblocked
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unblock @\(username)", content: "✅ \(name)")
+            }
+            return (title: "Unblock User", content: "✅ Unblock this user?")
+
+        case .blockUserDMs:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Block DMs from @\(username)", content: "🚫💬 \(name)")
+            }
+            return (title: "Block DMs", content: "🚫💬 Block DMs from this user?")
+
+        case .unblockUserDMs:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unblock DMs from @\(username)", content: "✅💬 \(name)")
+            }
+            return (title: "Unblock DMs", content: "✅💬 Unblock DMs from this user?")
+
+        // MARK: - Lists
+        case .createList:
+            let name = params["name"] as? String ?? ""
+            let description = params["description"] as? String ?? ""
+            let isPrivate = params["private"] as? Bool ?? false
+            let privacy = isPrivate ? "🔒 Private" : "🌐 Public"
+            return (title: "Create List", content: "📋 \(name)\n\(privacy)\n\n\(description)")
+
+        case .deleteList:
+            let listId = params["id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Delete List", content: "🗑️ \(listName)")
+            }
+            return (title: "Delete List", content: "🗑️ Delete this list?")
+
+        case .updateList:
+            let listId = params["id"] as? String ?? ""
+            let name = params["name"] as? String
+            let description = params["description"] as? String
+            let isPrivate = params["private"] as? Bool
+
+            var updates: [String] = []
+            if let name = name { updates.append("Name: \(name)") }
+            if let description = description { updates.append("Description: \(description)") }
+            if let isPrivate = isPrivate {
+                updates.append("Privacy: \(isPrivate ? "🔒 Private" : "🌐 Public")")
+            }
+
+            return (title: "Update List", content: "📋 \(updates.joined(separator: "\n"))")
+
+        case .addListMember:
+            let listId = params["id"] as? String ?? ""
+            let userId = params["user_id"] as? String ?? ""
+
+            // Fetch both list and user
+            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+
+            let (list, user) = await (listResult, userResult)
+
+            var listName = "list"
+            if list.success,
+               let responseData = list.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let name = listData["name"] as? String {
+                listName = name
+            }
+
+            var username = "user"
+            if user.success,
+               let responseData = user.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let handle = userData["username"] as? String {
+                username = "@\(handle)"
+            }
+
+            return (title: "Add to List", content: "📋 \(listName)\n➕ \(username)")
+
+        case .removeListMember:
+            let listId = params["id"] as? String ?? ""
+            let userId = params["user_id"] as? String ?? ""
+
+            // Fetch both list and user
+            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+
+            let (list, user) = await (listResult, userResult)
+
+            var listName = "list"
+            if list.success,
+               let responseData = list.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let name = listData["name"] as? String {
+                listName = name
+            }
+
+            var username = "user"
+            if user.success,
+               let responseData = user.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let handle = userData["username"] as? String {
+                username = "@\(handle)"
+            }
+
+            return (title: "Remove from List", content: "📋 \(listName)\n➖ \(username)")
+
+        case .pinList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Pin List", content: "📌 \(listName)")
+            }
+            return (title: "Pin List", content: "📌 Pin this list?")
+
+        case .unpinList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Unpin List", content: "📍 \(listName)")
+            }
+            return (title: "Unpin List", content: "📍 Unpin this list?")
+
+        // MARK: - Bookmarks
+        case .addBookmark:
+            let tweetId = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be bookmarked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": tweetId,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Bookmark Tweet", content: "🔖 \"\(truncated)\"")
+            }
+            return (title: "Bookmark Tweet", content: "🔖 Save this tweet?")
+
+        case .removeBookmark:
+            let tweetId = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unbookmarked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": tweetId,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Remove Bookmark", content: "🔖❌ \"\(truncated)\"")
+            }
+            return (title: "Remove Bookmark", content: "🔖❌ Remove bookmark?")
+
+        // MARK: - Stream Rules
+        case .manageStreamRules:
+            var content: [String] = []
+
+            if let add = params["add"] as? [[String: Any]] {
+                let addRules = add.compactMap { $0["value"] as? String }
+                if !addRules.isEmpty {
+                    content.append("➕ Add rules:\n" + addRules.map { "  • \($0)" }.joined(separator: "\n"))
+                }
+            }
+
+            if let delete = params["delete"] as? [String: Any],
+               let ids = delete["ids"] as? [String] {
+                if !ids.isEmpty {
+                    content.append("➖ Delete \(ids.count) rule(s)")
+                }
+            }
+
+            return (title: "Manage Stream Rules", content: content.joined(separator: "\n\n"))
+
         default:
             return (title: "Allow \(name)?", content: arguments)
         }
