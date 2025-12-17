@@ -41,7 +41,7 @@ class VoiceAssistantViewModel: NSObject {
     private var currentAudioStartTime: Date?
 
     // Configuration
-    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz
+    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .fourtyEightKHz
 
     // X Auth - computed properties from AuthViewModel
     var isXAuthenticated: Bool {

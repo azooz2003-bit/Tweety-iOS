@@ -181,16 +181,6 @@ actor XToolOrchestrator {
         return enriched
     }
 
-    /// Enriches parameters with essential space-related fields
-    private func enrichWithSpaceFields(_ params: [String: Any]) -> [String: Any] {
-        var enriched = params
-        enriched["space.fields"] = enriched["space.fields"] ?? "id,state,title,created_at,host_ids,speaker_ids,participant_count,is_ticketed"
-        enriched["expansions"] = enriched["expansions"] ?? "host_ids,speaker_ids,creator_id"
-        enriched["user.fields"] = enriched["user.fields"] ?? "username,name,profile_image_url"
-        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,created_at"
-        return enriched
-    }
-
     internal func buildRequest(for tool: XTool, parameters: [String: Any]) async throws -> URLRequest {
         var path: String
         var method: HTTPMethod
@@ -291,35 +281,6 @@ actor XToolOrchestrator {
 
         case .getAllTweetCounts:
             path = "/2/tweets/counts/all"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        // MARK: - Streaming
-        case .streamFilteredTweets:
-            path = "/2/tweets/search/stream"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
-
-        case .manageStreamRules:
-            path = "/2/tweets/search/stream/rules"
-            method = .post
-            bodyParams = parameters
-
-        case .getStreamRules:
-            path = "/2/tweets/search/stream/rules"
-            method = .get
-
-        case .getStreamRuleCounts:
-            path = "/2/tweets/search/stream/rules/counts"
-            method = .get
-
-        case .streamSample:
-            path = "/2/tweets/sample/stream"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .streamSample10:
-            path = "/2/tweets/sample10/stream"
             method = .get
             queryItems = buildQueryItems(from: parameters)
 
@@ -632,49 +593,15 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
-        // MARK: - Spaces
-        case .getSpace:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters), excluding: ["id"])
-
-        case .getSpaces:
-            path = "/2/spaces"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters))
-
-        case .getSpacesByCreator:
-            path = "/2/spaces/by/creator_ids"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters))
-
-        case .getSpaceTweets:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)/tweets"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters), excluding: ["id"])
-
-        case .searchSpaces:
-            path = "/2/spaces/search"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters))
-
-        case .getSpaceBuyers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)/buyers"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithSpaceFields(parameters), excluding: ["id"])
-
         // MARK: - Trends
-        case .getTrendsByWoeid:
-            guard let woeid = parameters["woeid"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: woeid") }
-            path = "/2/trends/by/woeid/\(woeid)"
+        case .getPersonalizedTrends:
+            path = "/2/users/personalized_trends"
             method = .get
 
-        case .getPersonalizedTrends:
-            path = "/2/trends/personalized"
-            method = .get
+            // Always include all personalized trend fields
+            var enrichedParams = parameters
+            enrichedParams["personalized_trend.fields"] = "category,post_count,trend_name,trending_since"
+            queryItems = buildQueryItems(from: enrichedParams)
 
         // MARK: - Community Notes
         case .createNote:
@@ -700,22 +627,6 @@ actor XToolOrchestrator {
 
         case .getPostsEligibleForNotes:
             path = "/2/notes/search/posts_eligible_for_notes"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        // MARK: - Compliance
-        case .createComplianceJob:
-            path = "/2/compliance/jobs"
-            method = .post
-            bodyParams = parameters
-
-        case .getComplianceJob:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/compliance/jobs/\(id)"
-            method = .get
-
-        case .listComplianceJobs:
-            path = "/2/compliance/jobs"
             method = .get
             queryItems = buildQueryItems(from: parameters)
 

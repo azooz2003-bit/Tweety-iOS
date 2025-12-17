@@ -32,14 +32,6 @@ enum XTool: String, CaseIterable, Identifiable {
     case getRecentTweetCounts = "get_recent_tweet_counts"
     case getAllTweetCounts = "get_all_tweet_counts"
 
-    // MARK: - Streaming
-    case streamFilteredTweets = "stream_filtered_tweets"
-    case manageStreamRules = "manage_stream_rules"
-    case getStreamRules = "get_stream_rules"
-    case getStreamRuleCounts = "get_stream_rule_counts"
-    case streamSample = "stream_sample"
-    case streamSample10 = "stream_sample_10"
-
     // MARK: - Users
     case getUserById = "get_user_by_id"
     case getUserByUsername = "get_user_by_username"
@@ -98,16 +90,7 @@ enum XTool: String, CaseIterable, Identifiable {
     case removeBookmark = "remove_bookmark"
     case getUserBookmarks = "get_user_bookmarks"
 
-    // MARK: - Spaces
-    case getSpace = "get_space"
-    case getSpaces = "get_spaces"
-    case getSpacesByCreator = "get_spaces_by_creator"
-    case getSpaceTweets = "get_space_tweets"
-    case searchSpaces = "search_spaces"
-    case getSpaceBuyers = "get_space_buyers"
-
     // MARK: - Trends
-    case getTrendsByWoeid = "get_trends_by_woeid"
     case getPersonalizedTrends = "get_personalized_trends"
 
     // MARK: - Community Notes
@@ -116,12 +99,6 @@ enum XTool: String, CaseIterable, Identifiable {
     case evaluateNote = "evaluate_note"
     case getNotesWritten = "get_notes_written"
     case getPostsEligibleForNotes = "get_posts_eligible_for_notes"
-
-    // MARK: - Compliance
-    case createComplianceJob = "create_compliance_job"
-    case getComplianceJob = "get_compliance_job"
-
-    case listComplianceJobs = "list_compliance_jobs"
 
     // MARK: - Media
     case uploadMedia = "upload_media"
@@ -156,14 +133,6 @@ enum XTool: String, CaseIterable, Identifiable {
         case .searchAllTweets: return "Search tweets from the full archive"
         case .getRecentTweetCounts: return "Get tweet counts for recent tweets"
         case .getAllTweetCounts: return "Get tweet counts from full archive"
-
-        // Streaming
-        case .streamFilteredTweets: return "Stream tweets matching active rules"
-        case .manageStreamRules: return "Add or delete streaming rules"
-        case .getStreamRules: return "Get active streaming rules"
-        case .getStreamRuleCounts: return "Get streaming rule counts"
-        case .streamSample: return "Stream 1% sample of tweets"
-        case .streamSample10: return "Stream 10% sample of tweets"
 
         // Users
         case .getUserById: return "Get user details by user ID"
@@ -223,16 +192,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .removeBookmark: return "Remove a tweet from bookmarks"
         case .getUserBookmarks: return "Get user's bookmarked tweets"
 
-        // Spaces
-        case .getSpace: return "Get space details by ID"
-        case .getSpaces: return "Get multiple spaces by IDs"
-        case .getSpacesByCreator: return "Get spaces created by specific users"
-        case .getSpaceTweets: return "Get tweets shared in a space"
-        case .searchSpaces: return "Search spaces by query"
-        case .getSpaceBuyers: return "Get users who purchased space tickets"
-
         // Trends
-        case .getTrendsByWoeid: return "Get trends for a location by WOEID"
         case .getPersonalizedTrends: return "Get personalized trending topics"
 
         // Community Notes
@@ -241,11 +201,6 @@ enum XTool: String, CaseIterable, Identifiable {
         case .evaluateNote: return "Evaluate a community note"
         case .getNotesWritten: return "Get notes written by user"
         case .getPostsEligibleForNotes: return "Get posts eligible for notes"
-
-        // Compliance
-        case .createComplianceJob: return "Create a compliance job"
-        case .getComplianceJob: return "Get compliance job details"
-        case .listComplianceJobs: return "List all compliance jobs"
 
         // Media
         case .uploadMedia: return "Upload media file"
@@ -449,63 +404,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "granularity": .string(description: "Time granularity", enum: ["minute", "hour", "day"])
                 ],
                 required: ["query"]
-            )
-
-        // MARK: - Streaming
-        case .streamFilteredTweets:
-            return .object(
-                properties: [:]
-            )
-
-        case .manageStreamRules:
-            return .object(
-                properties: [
-                    "add": .array(
-                        description: "Rules to add",
-                        items: .object(
-                            properties: [
-                                "value": .string(description: "Rule filter query"),
-                                "tag": .string(description: "Rule tag")
-                            ],
-                            required: ["value"]
-                        )
-                    ),
-                    "delete": .object(
-                        properties: [
-                            "ids": .array(description: "Rule IDs to delete", items: .string())
-                        ]
-                    )
-                ]
-            )
-
-        case .getStreamRules:
-            return .object(properties: [:])
-
-        case .getStreamRuleCounts:
-            return .object(properties: [:])
-
-        case .streamSample:
-            return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
-            )
-
-        case .streamSample10:
-            return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
             )
 
         // MARK: - Users
@@ -949,68 +847,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 required: ["id"]
             )
 
-        // MARK: - Spaces
-        case .getSpace:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID")
-                ],
-                required: ["id"]
-            )
-
-        case .getSpaces:
-            return .object(
-                properties: [
-                    "ids": .array(description: "Space IDs", items: .string())
-                ],
-                required: ["ids"]
-            )
-
-        case .getSpacesByCreator:
-            return .object(
-                properties: [
-                    "user_ids": .array(description: "Creator user IDs", items: .string())
-                ],
-                required: ["user_ids"]
-            )
-
-        case .getSpaceTweets:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
-                ],
-                required: ["id"]
-            )
-
-        case .searchSpaces:
-            return .object(
-                properties: [
-                    "query": .string(description: "Search query"),
-                    "state": .string(description: "Space state", enum: ["live", "scheduled", "ended"]),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
-                ],
-                required: ["query"]
-            )
-
-        case .getSpaceBuyers:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
-                ],
-                required: ["id"]
-            )
-
         // MARK: - Trends
-        case .getTrendsByWoeid:
-            return .object(
-                properties: [
-                    "woeid": .string(description: "Where On Earth ID for location")
-                ],
-                required: ["woeid"]
-            )
-
         case .getPersonalizedTrends:
             return .object(properties: [:])
 
@@ -1053,34 +890,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
                 ]
-            )
-
-        // MARK: - Compliance
-        case .createComplianceJob:
-            return .object(
-                properties: [
-                    "type": .string(description: "Job type", enum: ["tweets", "users"]),
-                    "name": .string(description: "Job name"),
-                    "resumable": .boolean(description: "Whether the job is resumable")
-                ],
-                required: ["type"]
-            )
-
-        case .getComplianceJob:
-            return .object(
-                properties: [
-                    "id": .string(description: "The compliance job ID")
-                ],
-                required: ["id"]
-            )
-
-        case .listComplianceJobs:
-            return .object(
-                properties: [
-                    "type": .string(description: "Job type filter", enum: ["tweets", "users"]),
-                    "status": .string(description: "Job status filter", enum: ["created", "in_progress", "complete", "failed"])
-                ],
-                required: ["type"]
             )
 
         // MARK: - Media
@@ -1209,14 +1018,6 @@ extension XTool {
 
         // Bookmarks
         case .addBookmark, .removeBookmark:
-            return .requiresConfirmation
-
-        // Stream Rules
-        case .manageStreamRules:
-            return .requiresConfirmation
-
-        // Compliance
-        case .createComplianceJob:
             return .requiresConfirmation
 
         // Voice Confirmation tools (must execute immediately without confirmation)
@@ -1795,26 +1596,6 @@ extension XTool {
                 return (title: "Remove Bookmark", content: "🔖❌ \"\(truncated)\"")
             }
             return (title: "Remove Bookmark", content: "🔖❌ Remove bookmark?")
-
-        // MARK: - Stream Rules
-        case .manageStreamRules:
-            var content: [String] = []
-
-            if let add = params["add"] as? [[String: Any]] {
-                let addRules = add.compactMap { $0["value"] as? String }
-                if !addRules.isEmpty {
-                    content.append("➕ Add rules:\n" + addRules.map { "  • \($0)" }.joined(separator: "\n"))
-                }
-            }
-
-            if let delete = params["delete"] as? [String: Any],
-               let ids = delete["ids"] as? [String] {
-                if !ids.isEmpty {
-                    content.append("➖ Delete \(ids.count) rule(s)")
-                }
-            }
-
-            return (title: "Manage Stream Rules", content: content.joined(separator: "\n\n"))
 
         default:
             return (title: "Allow \(name)?", content: arguments)
