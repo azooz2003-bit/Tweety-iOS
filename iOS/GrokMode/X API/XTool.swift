@@ -356,10 +356,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp from which the Posts will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "end_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Posts will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
-                    "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 100, otherwise API will return error.", minimum: 10, maximum: 100),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
                 ],
@@ -370,10 +366,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp from which the Posts will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "end_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Posts will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
-                    "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 500, otherwise API will return error.", minimum: 10, maximum: 500),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
                 ],
@@ -384,10 +376,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "ISO 8601 datetime"),
-                    "end_time": .string(description: "ISO 8601 datetime"),
-                    "since_id": .string(description: "Tweet ID for filtering"),
-                    "until_id": .string(description: "Tweet ID for filtering"),
                     "granularity": .string(description: "Time granularity", enum: ["minute", "hour", "day"])
                 ],
                 required: ["query"]
@@ -397,10 +385,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "ISO 8601 datetime"),
-                    "end_time": .string(description: "ISO 8601 datetime"),
-                    "since_id": .string(description: "Tweet ID for filtering"),
-                    "until_id": .string(description: "Tweet ID for filtering"),
                     "granularity": .string(description: "Time granularity", enum: ["minute", "hour", "day"])
                 ],
                 required: ["query"]

@@ -128,6 +128,24 @@ class VoiceAssistantViewModel: NSObject {
             }
         }
 
+        xaiService.onDisconnected = { [weak self] error in
+            Task { @MainActor in
+                if let error = error {
+                    AppLogger.voice.error("WebSocket disconnected with error: \(error.localizedDescription)")
+                } else {
+                    AppLogger.voice.info("WebSocket disconnected normally")
+                }
+
+                // Stop the session to clean up resources
+                self?.stopSession()
+
+                // Update state
+                if let error = error {
+                    self?.voiceSessionState = .error("Disconnected: \(error.localizedDescription)")
+                }
+            }
+        }
+
         // Start connection
         Task {
             do {
@@ -302,13 +320,8 @@ class VoiceAssistantViewModel: NSObject {
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
-            // Handle truncation
-            if let itemId = currentItemId, let startTime = currentAudioStartTime {
-                let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
-                try? xaiService?.sendTruncationEvent(itemId: itemId, audioEndMs: elapsed)
-                currentItemId = nil
-                currentAudioStartTime = nil
-            }
+            currentItemId = nil
+            currentAudioStartTime = nil
 
         case .inputAudioBufferSpeechStopped:
             // User stopped speaking (server-side VAD - faster than local)
@@ -465,8 +478,6 @@ class VoiceAssistantViewModel: NSObject {
         guard let data = pendingTool.arguments.data(using: .utf8),
               let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tool = XTool(rawValue: pendingTool.functionName) else {
-            // Move to next and notify
-            moveToNextPendingTool()
             return ("Failed to parse tool parameters", false)
         }
 
@@ -495,16 +506,6 @@ class VoiceAssistantViewModel: NSObject {
             }
         }
 
-        // Send the original tool's result back to XAI
-        try? xaiService?.sendToolOutput(
-            toolCallId: pendingTool.id,
-            output: outputString,
-            success: isSuccess
-        )
-
-        // Move to next tool in queue and notify
-        moveToNextPendingTool()
-
         return (outputString, isSuccess)
     }
 
@@ -524,18 +525,34 @@ class VoiceAssistantViewModel: NSObject {
                         originalToolCallId = "unknown"
                     }
 
-                    // Execute the approved tool and wait for results
-                    let (outputString, isSuccess) = await executeApprovedTool()
-
-                    // Send single combined response to Grok with confirmation + results
+                    // Send immediate confirmation response
                     try? xaiService?.sendToolOutput(
                         toolCallId: toolCall.id,
-                        output: "User confirmed the action. Original tool call ID: \(originalToolCallId). Execution result: \(outputString)",
-                        success: isSuccess
+                        output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily - do NOT speak about the result until you receive it.",
+                        success: true
                     )
 
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
-                    try? xaiService?.createResponse()
+                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+
+                    // Execute tool asynchronously and send result when ready
+                    Task {
+                        let (outputString, isSuccess) = await executeApprovedTool()
+
+                        // Send the actual tool result in a separate message
+                        try? xaiService?.sendToolOutput(
+                            toolCallId: originalToolCallId,
+                            output: outputString,
+                            success: isSuccess
+                        )
+
+                        try? xaiService?.createResponse()
+
+                        // After sending the result, move to next pending tool
+                        await MainActor.run {
+                            moveToNextPendingTool()
+                        }
+                    }
+
                     return
 
                 case .cancelAction:
@@ -628,17 +645,15 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
-        // Try to parse tweets from JSON response
         guard let data = response.data(using: .utf8) else { return }
 
-        #if DEBUG
-        // DEBUG: Log raw response
-        AppLogger.network.debug("RAW TWEET RESPONSE (first 500 chars):")
-        AppLogger.logSensitive(AppLogger.network, level: .debug, String(response.prefix(500)))
-        #endif
+        let tweetTools: Set<XTool> = [
+            .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
+            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline
+        ]
 
         do {
-            if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets || xTool == .getUserTweets || xTool == .getUserMentions || xTool == .getHomeTimeline {
+            if let xTool = XTool(rawValue: toolName), tweetTools.contains(xTool) {
                 struct TweetResponse: Codable {
                     let data: [XTweet]?
                     let includes: Includes?
@@ -651,82 +666,25 @@ class VoiceAssistantViewModel: NSObject {
 
                 let tweetResponse = try JSONDecoder().decode(TweetResponse.self, from: data)
 
-                #if DEBUG
-                AppLogger.network.debug("===== PARSED TWEET DATA =====")
-                AppLogger.network.debug("Total tweets: \(tweetResponse.data?.count ?? 0)")
-                AppLogger.network.debug("Total users in includes: \(tweetResponse.includes?.users?.count ?? 0)")
-                AppLogger.network.debug("Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
-                #endif
-
                 if let tweets = tweetResponse.data {
-                    for (index, tweet) in tweets.enumerated() {
-                        #if DEBUG
-                        AppLogger.network.debug("===== TWEET #\(index + 1) =====")
-                        AppLogger.network.debug("ID: \(tweet.id)")
-                        AppLogger.network.debug("Text: \(String(tweet.text.prefix(50)))...")
-                        AppLogger.network.debug("Author ID: \(tweet.author_id ?? "nil")")
-                        AppLogger.network.debug("Created At: \(tweet.created_at ?? "nil")")
-                        #endif
-
+                    for tweet in tweets {
                         let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                        #if DEBUG
-                        AppLogger.network.debug("Author Found: \(author != nil)")
-                        if let author = author {
-                            AppLogger.network.debug("  - Name: \(author.name)")
-                            AppLogger.network.debug("  - Username: @\(author.username)")
-                        }
 
-                        // Log attachments
-                        if let attachments = tweet.attachments {
-                            AppLogger.network.debug("Attachments: \(attachments.media_keys?.count ?? 0) media items")
-                        } else {
-                            AppLogger.network.debug("Attachments: none")
-                        }
-
-                        // Log metrics in detail
-                        AppLogger.network.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
-                        if let metrics = tweet.public_metrics {
-                            AppLogger.network.debug("  ✓ Like Count: \(metrics.like_count ?? 0)")
-                            AppLogger.network.debug("  ✓ Retweet Count: \(metrics.retweet_count ?? 0)")
-                            AppLogger.network.debug("  ✓ Reply Count: \(metrics.reply_count ?? 0)")
-                            AppLogger.network.debug("  ✓ Quote Count: \(metrics.quote_count ?? 0)")
-                            AppLogger.network.debug("  ✓ Impression Count (Views): \(metrics.impression_count ?? 0)")
-                            AppLogger.network.debug("  ✓ Bookmark Count: \(metrics.bookmark_count ?? 0)")
-                        } else {
-                            AppLogger.network.debug("  ✗ NO METRICS IN RESPONSE")
-                        }
-                        #endif
-
-                        // Extract media URLs for this tweet
+                        // Extract media URLs
                         var mediaUrls: [String] = []
                         if let mediaKeys = tweet.attachments?.media_keys,
                            let allMedia = tweetResponse.includes?.media {
-                            #if DEBUG
-                            AppLogger.network.debug("Processing \(mediaKeys.count) media keys...")
-                            #endif
                             for mediaKey in mediaKeys {
                                 if let media = allMedia.first(where: { $0.media_key == mediaKey }),
                                    let displayUrl = media.displayUrl {
                                     mediaUrls.append(displayUrl)
-                                    #if DEBUG
-                                    AppLogger.network.debug("  ✓ Media URL: \(String(displayUrl.prefix(50)))...")
-                                    #endif
                                 }
                             }
                         }
-                        #if DEBUG
-                        AppLogger.network.debug("Total Media URLs: \(mediaUrls.count)")
-                        #endif
 
                         addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
-                        #if DEBUG
-                        AppLogger.network.debug("✓ Tweet #\(index + 1) added to conversation")
-                        #endif
                     }
                 }
-                #if DEBUG
-                AppLogger.network.debug("===== PARSING COMPLETE =====")
-                #endif
             }
         } catch {
             AppLogger.network.error("Failed to parse tweets: \(error.localizedDescription)")
@@ -770,13 +728,8 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             voiceSessionState = .listening
             audioStreamer?.stopPlayback()
 
-            // Handle truncation - tell Grok to stop generating audio
-            if let itemId = currentItemId, let startTime = currentAudioStartTime {
-                let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
-                try? xaiService?.sendTruncationEvent(itemId: itemId, audioEndMs: elapsed)
-                currentItemId = nil
-                currentAudioStartTime = nil
-            }
+            currentItemId = nil
+            currentAudioStartTime = nil
         }
     }
 

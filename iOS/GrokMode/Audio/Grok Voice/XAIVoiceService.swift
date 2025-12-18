@@ -310,37 +310,6 @@ class XAIVoiceService {
         // try createResponse()
     }
 
-    func sendTruncationEvent(itemId: String, audioEndMs: Int, contentIndex: Int = 0) throws {
-        AppLogger.voice.debug("Truncating item \(itemId) at \(audioEndMs)ms")
-        let message = ConversationEvent(
-            type: .conversationItemTruncate,
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: nil,
-            tools: nil,
-            tool_call_id: nil,
-            call_id: nil,
-            name: nil,
-            arguments: nil,
-            event_id: nil,
-            previous_item_id: nil,
-            response_id: nil,
-            output_index: nil,
-            item_id: itemId,
-            content_index: contentIndex,
-            audio_start_ms: nil,
-            audio_end_ms: audioEndMs,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
-        )
-        try sendMessage(message)
-    }
-
     // MARK: - Message Handling
 
     internal func sendMessage(_ message: ConversationEvent) throws {
@@ -365,7 +334,13 @@ class XAIVoiceService {
     }
 
     private func receiveMessages() {
-        webSocketTask?.receive { [weak self] result in
+        // Check if socket is still connected before trying to receive
+        guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
+            AppLogger.voice.warning("Attempted to receive on disconnected socket")
+            return
+        }
+
+        webSocketTask.receive { [weak self] result in
             guard let self = self else { return }
 
             switch result {

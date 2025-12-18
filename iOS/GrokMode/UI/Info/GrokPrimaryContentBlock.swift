@@ -68,7 +68,7 @@ struct GrokPrimaryContentBlock: View {
             Text(text)
                 .font(.system(size: 16))
                 .foregroundColor(.primary)
-                .lineLimit(nil)
+                .lineLimit(5)
                 .frame(maxWidth: .infinity, maxHeight: 200, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -200,7 +200,7 @@ struct GrokPrimaryContentBlock: View {
     @ViewBuilder
     private func mediaGrid(urls: [String]) -> some View {
         let columns = urls.count == 1 ? 1 : 2
-        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 8), count: columns)
+        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 12), count: columns)
 
         LazyVGrid(columns: gridItems, spacing: 8) {
             ForEach(Array(urls.prefix(4).enumerated()), id: \.offset) { index, urlString in
@@ -269,7 +269,7 @@ struct GrokPrimaryContentBlock: View {
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
-                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation with Grok about the future of AI. Just had a great conversation with Grok about the future of AI",
                     mediaUrls: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
