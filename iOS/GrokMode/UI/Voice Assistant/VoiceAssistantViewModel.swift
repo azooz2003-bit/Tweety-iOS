@@ -223,19 +223,6 @@ class VoiceAssistantViewModel: NSObject {
         addSystemMessage("Disconnected")
     }
 
-    func reconnect() {
-        AppLogger.voice.info("Reconnecting...")
-
-        // Stop any existing streams
-        audioStreamer?.stopStreaming()
-
-        // Disconnect existing service
-        xaiService?.disconnect()
-
-        // Reconnect (this will set state to .connecting)
-        connect()
-    }
-
     // MARK: - Audio Streaming
 
     func startSession() {
@@ -326,6 +313,7 @@ class VoiceAssistantViewModel: NSObject {
         case .inputAudioBufferSpeechStopped:
             // User stopped speaking (server-side VAD - faster than local)
             voiceSessionState = .connected
+//            try? self.xaiService?.commitAudioBuffer()
 
         case .inputAudioBufferCommitted:
             // Audio sent for processing
@@ -397,7 +385,7 @@ class VoiceAssistantViewModel: NSObject {
             if isFirstInQueue {
                 try? xaiService?.sendToolOutput(
                     toolCallId: toolCall.id,
-                    output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
+                    output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'. Send a confirm_action tool call if the user indicates that they'd like to confirm this action.",
                     success: false
                 )
             }
@@ -468,47 +456,6 @@ class VoiceAssistantViewModel: NSObject {
         }
     }
 
-    // Execute the approved tool and return results
-    private func executeApprovedTool() async -> (output: String, success: Bool) {
-        guard let pendingTool = pendingToolCallQueue.first else {
-            return ("No pending tool to execute", false)
-        }
-
-        // Parse arguments
-        guard let data = pendingTool.arguments.data(using: .utf8),
-              let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tool = XTool(rawValue: pendingTool.functionName) else {
-            return ("Failed to parse tool parameters", false)
-        }
-
-        // Execute the tool
-        let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
-        let result = await orchestrator.executeTool(tool, parameters: parameters, id: pendingTool.id)
-
-        let outputString: String
-        let isSuccess: Bool
-
-        if result.success, let response = result.response {
-            outputString = response
-            isSuccess = true
-
-            // Parse and display tweets if applicable
-            await MainActor.run {
-                parseTweetsFromResponse(response, toolName: tool.rawValue)
-                addConversationItem(.toolCall(name: pendingTool.functionName, status: .executed(success: true)))
-            }
-        } else {
-            outputString = result.error?.message ?? "Unknown error"
-            isSuccess = false
-
-            await MainActor.run {
-                addConversationItem(.toolCall(name: pendingTool.functionName, status: .executed(success: false)))
-            }
-        }
-
-        return (outputString, isSuccess)
-    }
-
     private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
             // Handle voice confirmation tools specially
@@ -528,30 +475,15 @@ class VoiceAssistantViewModel: NSObject {
                     // Send immediate confirmation response
                     try? xaiService?.sendToolOutput(
                         toolCallId: toolCall.id,
-                        output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily - do NOT speak about the result until you receive it.",
+                        output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily. You can say anything, however don't misguide the user assuming the request is done - because it isn't.",
                         success: true
                     )
 
                     addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    try? xaiService?.createResponse()
 
-                    // Execute tool asynchronously and send result when ready
-                    Task {
-                        let (outputString, isSuccess) = await executeApprovedTool()
-
-                        // Send the actual tool result in a separate message
-                        try? xaiService?.sendToolOutput(
-                            toolCallId: originalToolCallId,
-                            output: outputString,
-                            success: isSuccess
-                        )
-
-                        try? xaiService?.createResponse()
-
-                        // After sending the result, move to next pending tool
-                        await MainActor.run {
-                            moveToNextPendingTool()
-                        }
-                    }
+                    // Execute the approved tool (handles sending result and moving to next)
+                    approveToolCall()
 
                     return
 
@@ -725,11 +657,11 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             // Immediately interrupt Grok's playback for faster response
             AppLogger.audio.debug("🗣️ Speech framework detected user speaking - interrupting Grok")
 
-            voiceSessionState = .listening
-            audioStreamer?.stopPlayback()
-
-            currentItemId = nil
-            currentAudioStartTime = nil
+//            voiceSessionState = .listening
+//            audioStreamer?.stopPlayback()
+//
+//            currentItemId = nil
+//            currentAudioStartTime = nil
         }
     }
 
@@ -738,8 +670,10 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             // Speech framework detected silence
             // Server-side VAD will handle the buffer commit when ready
             AppLogger.audio.debug("🤫 Speech framework detected silence")
-            voiceSessionState = .connected
-            try? self.xaiService?.commitAudioBuffer()
+//            voiceSessionState = .connected
+//            try? self.xaiService?.commitAudioBuffer()
+//
+//            try? self.xaiService?.createResponse()
         }
     }
 

@@ -305,9 +305,6 @@ class XAIVoiceService {
             conversation: nil
         )
         try sendMessage(toolOutput)
-        
-        // Trigger response creation if needed immediately
-        // try createResponse()
     }
 
     // MARK: - Message Handling

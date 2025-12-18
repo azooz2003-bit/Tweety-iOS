@@ -25,25 +25,6 @@ struct GrokPrimaryContentBlock: View {
     let tweetUrl: String?  // Deep link URL
 
     var body: some View {
-        #if DEBUG
-        let _ = {
-            AppLogger.ui.debug("===== RENDERING TWEET CARD =====")
-            AppLogger.ui.debug("Display Name: \(displayName)")
-            AppLogger.ui.debug("Username: @\(username)")
-            AppLogger.ui.debug("Profile Image URL: \(profileImageUrl ?? "NIL")")
-            AppLogger.ui.debug("Text Length: \(text.count) chars")
-            AppLogger.ui.debug("Media URLs: \(mediaUrls?.count ?? 0)")
-            AppLogger.ui.debug("Metrics: \(metrics != nil ? "PRESENT" : "NIL")")
-            metrics.map { m in
-                AppLogger.ui.debug("  - Rendering Likes: \(m.likes)")
-                AppLogger.ui.debug("  - Rendering Retweets: \(m.retweets)")
-                AppLogger.ui.debug("  - Rendering Views: \(m.views)")
-            }
-            AppLogger.ui.debug("Tweet URL: \(tweetUrl != nil ? "YES" : "NO")")
-            AppLogger.ui.debug("===========================")
-        }()
-        #endif
-
         VStack(alignment: .center, spacing: 12) {
             // Top: User icon and name centered and stacked
             VStack(spacing: 6) {
