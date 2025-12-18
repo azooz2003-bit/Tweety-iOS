@@ -77,6 +77,13 @@ struct VoiceAssistantView: View {
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
                     ToolbarSpacer(.fixed, placement: .bottomBar)
 
+                    ToolbarItem(placement: .bottomBar) {
+                        Text(viewModel.formattedSessionDuration)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+
                     ToolbarItem(placement:.bottomBar) {
                         stopButton
                     }

@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		64D5DF3B2EE5802900800961 /* JSONSchema in Frameworks */ = {isa = PBXBuildFile; productRef = 64D5DF3A2EE5802900800961 /* JSONSchema */; };
-		A33705742EE7B85300E9505F /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = A337055A2EE7B85300E9505F /* Secrets.xcconfig */; };
+		9FBA97592EF3C09100D62E99 /* Secrets.xcconfig in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,7 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A337055A2EE7B85300E9505F /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		A34575792EE5109700E6576A /* GrokMode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GrokMode.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575862EE5109800E6576A /* GrokModeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A34575902EE5109800E6576A /* GrokModeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GrokModeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -101,7 +101,7 @@
 				A34575892EE5109800E6576A /* GrokModeTests */,
 				A337057B2EE7CCB000E9505F /* Frameworks */,
 				A345757A2EE5109700E6576A /* Products */,
-				A337055A2EE7B85300E9505F /* Secrets.xcconfig */,
+				9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -236,7 +236,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A33705742EE7B85300E9505F /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,6 +260,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FBA97592EF3C09100D62E99 /* Secrets.xcconfig in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,7 +296,7 @@
 /* Begin XCBuildConfiguration section */
 		A34575982EE5109800E6576A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A337055A2EE7B85300E9505F /* Secrets.xcconfig */;
+			baseConfigurationReference = 9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -361,7 +361,7 @@
 		};
 		A34575992EE5109800E6576A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A337055A2EE7B85300E9505F /* Secrets.xcconfig */;
+			baseConfigurationReference = 9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -424,7 +424,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KJ7YS82G45;
+				DEVELOPMENT_TEAM = 39QYXNZ8BL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GrokMode/Info.plist;
@@ -441,6 +441,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allensu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -463,7 +464,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KJ7YS82G45;
+				DEVELOPMENT_TEAM = 39QYXNZ8BL;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GrokMode/Info.plist;
@@ -480,6 +481,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.allensu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

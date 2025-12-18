@@ -18,6 +18,17 @@ class VoiceAssistantViewModel: NSObject {
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
 
+    // MARK: Session Duration
+    var sessionElapsedTime: TimeInterval = 0
+    private var sessionStartTime: Date?
+    private var sessionTimer: Timer?
+
+    var formattedSessionDuration: String {
+        let minutes = Int(sessionElapsedTime) / 60
+        let seconds = Int(sessionElapsedTime) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
     var conversationItems: [ConversationItem] = []
 
     private var pendingToolCallQueue: [PendingToolCall] = []
@@ -209,6 +220,14 @@ class VoiceAssistantViewModel: NSObject {
         isSessionActivated = true
         connect()
 
+        // Start session duration timer
+        sessionStartTime = Date()
+        sessionElapsedTime = 0
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self, let startTime = self.sessionStartTime else { return }
+            self.sessionElapsedTime = Date().timeIntervalSince(startTime)
+        }
+
         // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
         audioStreamer?.startStreamingAsync { [weak self] error in
             if let error = error {
@@ -221,6 +240,11 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     func stopSession() {
+        // Stop session duration timer
+        sessionTimer?.invalidate()
+        sessionTimer = nil
+        sessionStartTime = nil
+
         self.disconnect()
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
