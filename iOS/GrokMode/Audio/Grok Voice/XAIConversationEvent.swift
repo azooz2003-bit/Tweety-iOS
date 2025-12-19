@@ -1,14 +1,16 @@
 //
-//  VoiceMessageEvent.swift
+//  XAIConversationEvent.swift
 //  GrokMode
 //
 //  Created by Abdulaziz Albahar on 12/11/25.
+//  Renamed by Claude Code on 12/18/25.
 //
 
 import JSONSchema
 
+/// xAI-specific conversation event model
 nonisolated
-struct ConversationEvent: Codable {
+struct XAIConversationEvent: Codable {
     let type: MessageEventType
     let audio: String? // Base64 encoded audio data
     let text: String? // Text content
@@ -45,7 +47,7 @@ struct ConversationEvent: Codable {
 
 
         // Client events
-        case sessionUpdate = "session.update", inputAudioBufferAppend = "input_audio_buffer.append", conversationItemCommit = "conversation.item.commit", conversationItemCreate = "conversation.item.create", responseCreate = "response.create", inputAudioBufferCommit = "input_audio_buffer.commit", conversationItemTruncate = "conversation.item.truncate"
+        case sessionUpdate = "session.update", inputAudioBufferAppend = "input_audio_buffer.append", conversationItemCommit = "conversation.item.commit", conversationItemCreate = "conversation.item.create", responseCreate = "response.create", inputAudioBufferCommit = "input_audio_buffer.commit"
 
 
         case error, ping
@@ -63,11 +65,6 @@ struct ConversationEvent: Codable {
         let turnDetection: TurnDetection?
         var tools: [ToolDefinition]? = nil
         var tool_choice: String? = nil // "auto", "none", or "required" (or specific tool)
-
-        enum CodingKeys: String, CodingKey {
-            case instructions, voice, audio, tools, tool_choice
-            case turnDetection = "turn_detection"
-        }
     }
 
     struct ToolDefinition: Codable {
@@ -79,7 +76,6 @@ struct ConversationEvent: Codable {
         static let xSearch = ToolDefinition(type: "x_search", name: nil, description: nil, parameters: nil)
         static let webSearch = ToolDefinition(type: "web_search", name: nil, description: nil, parameters: nil)
     }
-
 
     struct AudioConfig: Codable {
         let input: AudioFormat?

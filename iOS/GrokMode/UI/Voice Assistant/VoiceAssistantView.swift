@@ -46,12 +46,25 @@ struct VoiceAssistantView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Button {
-                            Task {
-                                await viewModel.logoutX()
+                        Menu("Voice Service") {
+                            Picker("Service", selection: $viewModel.selectedServiceType) {
+                                ForEach(VoiceServiceType.allCases) { serviceType in
+                                    Label(serviceType.displayName, systemImage: serviceType == .xai ? "circle.slash" : "brain.head.profile")
+                                        .tag(serviceType)
+                                }
                             }
-                        } label: {
-                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                            .pickerStyle(.inline)
+                            .disabled(viewModel.isSessionActivated)
+                        }
+
+                        Section {
+                            Button {
+                                Task {
+                                    await viewModel.logoutX()
+                                }
+                            } label: {
+                                Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
                         }
                     } label: {
                         Label("", systemImage: "ellipsis")

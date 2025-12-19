@@ -17,6 +17,7 @@ class VoiceAssistantViewModel: NSObject {
     var voiceSessionState: VoiceSessionState = .disconnected
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
+    var selectedServiceType: VoiceServiceType = .xai
 
     var conversationItems: [ConversationItem] = []
 
@@ -26,12 +27,10 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     // MARK: - Private Properties
-    private var xaiService: XAIVoiceService?
+    private var voiceService: VoiceService?
     private var audioStreamer: AudioStreamer?
     private var sessionState = SessionState()
     private let authViewModel: AuthViewModel
-
-    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .thirtyTwoKHz
 
     // MARK: Authentication
     var isXAuthenticated: Bool {
@@ -44,10 +43,6 @@ class VoiceAssistantViewModel: NSObject {
     init(authViewModel: AuthViewModel) {
         self.authViewModel = authViewModel
         super.init()
-
-        audioStreamer = try? AudioStreamer.make(xaiSampleRate: Double(serverSampleRate.rawValue))
-        audioStreamer?.delegate = self
-
         checkPermissions()
     }
 
@@ -73,29 +68,40 @@ class VoiceAssistantViewModel: NSObject {
     func connect() {
         voiceSessionState = .connecting
 
-        addSystemMessage("Connecting to XAI Voice...")
+        let serviceName = selectedServiceType.displayName
+        addSystemMessage("Connecting to \(serviceName) Voice...")
 
-        // Initialize XAI service
-        let xaiService = XAIVoiceService(sessionState: sessionState, sampleRate: serverSampleRate)
-        self.xaiService = xaiService
+        // Clean up existing audio streamer if switching services
+        if let existingStreamer = audioStreamer {
+            existingStreamer.stopStreaming()
+            self.audioStreamer = nil
+        }
+
+        // Initialize the selected voice service
+        let voiceService = selectedServiceType.createService(sessionState: sessionState)
+        self.voiceService = voiceService
+
+        // Initialize audio streamer with service-specific sample rate
+        audioStreamer = try? AudioStreamer.make(xaiSampleRate: Double(voiceService.requiredSampleRate))
+        audioStreamer?.delegate = self
 
         // Set up callbacks (already on main actor)
-        xaiService.onConnected = { [weak self] in
+        voiceService.onConnected = { [weak self] in
             Task { @MainActor in
                 self?.voiceSessionState = .connected
-                self?.addSystemMessage("Connected to XAI Voice")
+                self?.addSystemMessage("Connected to \(serviceName) Voice")
             }
         }
 
-        xaiService.onMessageReceived = { [weak self] message in
+        voiceService.onEvent = { [weak self] event in
             Task { @MainActor in
-                self?.handleXAIMessage(message)
+                self?.handleVoiceEvent(event)
             }
         }
 
-        xaiService.onError = { [weak self] error in
+        voiceService.onError = { [weak self] error in
             Task { @MainActor in
-                AppLogger.voice.error("XAI Error: \(error.localizedDescription)")
+                AppLogger.voice.error("\(serviceName) Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopSession()
@@ -105,7 +111,7 @@ class VoiceAssistantViewModel: NSObject {
             }
         }
 
-        xaiService.onDisconnected = { [weak self] error in
+        voiceService.onDisconnected = { [weak self] error in
             Task { @MainActor in
                 guard self?.voiceSessionState != .disconnected else { return }
 
@@ -135,56 +141,47 @@ class VoiceAssistantViewModel: NSObject {
 
                 let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
 
-                // Connect to XAI in parallel with user profile fetch
-                async let connect: () = xaiService.connect()
+                // Connect to voice service in parallel with user profile fetch
+                async let connect: () = voiceService.connect()
                 async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
 
                 // Await both operations
-                let (profileResult, _) = (await userProfileResult, try await connect)
+                let (_, _) = (await userProfileResult, try await connect)
 
                 // Configure session with tools (must be after connection)
                 let tools = XToolIntegration.getToolDefinitions()
-                try xaiService.configureSession(tools: tools)
 
-                // Send context as a user message
-                let contextString = profileResult.success ? (profileResult.response ?? "No profile data") : "Failed to fetch profile"
-                let contextMessage = ConversationEvent(
-                    type: .conversationItemCreate,
-                    audio: nil,
-                    text: nil,
-                    delta: nil,
-                    session: nil,
-                    item: ConversationEvent.ConversationItem(
-                        id: nil,
-                        object: nil,
-                        type: "message",
-                        status: nil,
-                        role: "user",
-                        content: [ConversationEvent.ContentItem(
-                            type: "input_text",
-                            text: "SYSTEM CONTEXT: Here is your user profile information: \(contextString). Use this context for the conversation.",
-                            transcript: nil
-                        )]
-                    ),
-                    tools: nil,
-                    tool_call_id: nil,
-                    event_id: nil,
-                    previous_item_id: nil,
-                    response_id: nil,
-                    output_index: nil,
-                    item_id: nil,
-                    content_index: nil,
-                    audio_start_ms: nil,
-                    audio_end_ms: nil,
-                    start_time: nil,
-                    timestamp: nil,
-                    part: nil,
-                    response: nil,
-                    conversation: nil
+                // Get service-specific instructions
+                let instructions: String
+                if let xaiService = voiceService as? XAIVoiceService {
+                    instructions = xaiService.instructions
+                } else if let openAIService = voiceService as? OpenAIVoiceService {
+                    instructions = openAIService.instructions
+                } else {
+                    instructions = "You are a helpful voice assistant."
+                }
+
+                let sessionConfig = VoiceSessionConfig(
+                    instructions: instructions,
+                    tools: tools,
+                    sampleRate: voiceService.requiredSampleRate
                 )
-                try xaiService.sendMessage(contextMessage)
+                try voiceService.configureSession(config: sessionConfig, tools: tools)
+
+                // TODO: Send context message in service-specific way if needed
+                // For now, context can be integrated into instructions or sent via tool
 
                 addSystemMessage("Session configured and ready")
+
+                // Start audio streaming now that session is configured
+                audioStreamer?.startStreamingAsync { [weak self] error in
+                    if let error = error {
+                        Task { @MainActor in
+                            AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
+                            self?.voiceSessionState = .error("Microphone access failed")
+                        }
+                    }
+                }
 
             } catch {
                 self.voiceSessionState = .error(error.localizedDescription)
@@ -196,7 +193,7 @@ class VoiceAssistantViewModel: NSObject {
     func disconnect() {
         isSessionActivated = false
         voiceSessionState = .disconnected
-        xaiService?.disconnect()
+        voiceService?.disconnect()
         audioStreamer?.stopStreaming()
 
         addSystemMessage("Disconnected")
@@ -208,16 +205,6 @@ class VoiceAssistantViewModel: NSObject {
         // Already connected, start listening
         isSessionActivated = true
         connect()
-
-        // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
-        audioStreamer?.startStreamingAsync { [weak self] error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
-                    self?.voiceSessionState = .error("Microphone access failed")
-                }
-            }
-        }
     }
 
     func stopSession() {
@@ -225,98 +212,59 @@ class VoiceAssistantViewModel: NSObject {
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
 
-    // MARK: - Message Handling
+    // MARK: - Event Handling
 
-    private func handleXAIMessage(_ message: ConversationEvent) {
-        switch message.type {
-        case .conversationCreated:
+    private func handleVoiceEvent(_ event: VoiceEvent) {
+        switch event {
+        case .sessionCreated:
             // Session initialized
             break
 
-        case .sessionUpdated:
+        case .sessionConfigured:
             // Session configured
             break
 
-        case .responseCreated:
-            // Assistant started responding
-            break
-
-        case .responseFunctionCallArgumentsDone:
-            if let callId = message.call_id,
-               let name = message.name,
-               let args = message.arguments {
-                let toolCall = ConversationEvent.ToolCall(
-                    id: callId,
-                    type: "function",
-                    function: ConversationEvent.FunctionCall(name: name, arguments: args)
-                )
-                handleToolCall(toolCall)
-            }
-
-        case .responseOutputItemAdded:
-            if let item = message.item, let toolCalls = item.tool_calls {
-                for toolCall in toolCalls {
-                    handleToolCall(toolCall)
-                }
-            }
-
-        case .conversationItemAdded:
-            break
-
-        case .responseDone:
-            // Check for tool calls in completed response
-            if let output = message.response?.output {
-                for item in output {
-                    if let toolCalls = item.tool_calls {
-                        for toolCall in toolCalls {
-                            handleToolCall(toolCall)
-                        }
-                    }
-                }
-            }
-
-        case .inputAudioBufferSpeechStarted:
+        case .userSpeechStarted:
             // User started speaking
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
-        case .inputAudioBufferSpeechStopped:
-            // User stopped speaking (server-side VAD - faster than local)
+        case .userSpeechStopped:
+            // User stopped speaking (server-side VAD)
             voiceSessionState = .connected
 
-        case .inputAudioBufferCommitted:
-            // Audio sent for processing
-            break
+        case .assistantSpeaking(let itemId):
+            voiceSessionState = .grokSpeaking(itemId: itemId)
 
-        case .responseOutputAudioDelta:
+        case .audioDelta(let data):
             guard !voiceSessionState.isListening else {
-                AppLogger.audio.debug("User speaking, skipping Grok audio")
+                AppLogger.audio.debug("User speaking, skipping assistant audio")
                 return
             }
 
-            if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
-                do {
-                    try audioStreamer?.playAudio(audioData)
-                } catch {
-                    AppLogger.audio.error("Failed to play audio: \(error.localizedDescription)")
-                }
-                voiceSessionState = .grokSpeaking(itemId: nil)
+            do {
+                try audioStreamer?.playAudio(data)
+            } catch {
+                AppLogger.audio.error("Failed to play audio: \(error.localizedDescription)")
             }
+            voiceSessionState = .grokSpeaking(itemId: nil)
 
-        case .error:
-            if let errorText = message.text {
-                addSystemMessage("Error: \(errorText)")
-            }
+        case .toolCall(let toolCall):
+            handleToolCall(toolCall)
 
-        default:
+        case .error(let errorMessage):
+            addSystemMessage("Error: \(errorMessage)")
+
+        case .other:
+            // Other events we don't specifically handle
             break
         }
     }
 
     // MARK: - Tool Handling
 
-    private func handleToolCall(_ toolCall: ConversationEvent.ToolCall) {
-        let functionName = toolCall.function.name
+    private func handleToolCall(_ toolCall: VoiceToolCall) {
+        let functionName = toolCall.name
 
         guard let tool = XTool(rawValue: functionName) else {
             // Unknown tool - execute anyway
@@ -337,7 +285,7 @@ class VoiceAssistantViewModel: NSObject {
             let newPendingTool = PendingToolCall(
                 id: toolCall.id,
                 functionName: functionName,
-                arguments: toolCall.function.arguments,
+                arguments: toolCall.arguments,
                 previewTitle: "Allow \(functionName)?",
                 previewContent: "Loading preview..."
             )
@@ -345,29 +293,30 @@ class VoiceAssistantViewModel: NSObject {
 
             addConversationItem(.toolCall(name: functionName, status: .pending))
 
-            // Only notify Grok if this is the focused (first) tool
+            // Only notify voice assistant if this is the focused (first) tool
             if isFirstInQueue {
-                try? xaiService?.sendToolOutput(
+                try? voiceService?.sendToolOutput(VoiceToolOutput(
                     toolCallId: toolCall.id,
                     output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'. Send a confirm_action tool call if the user indicates that they'd like to confirm this action.",
-                    success: false
-                )
-                try? xaiService?.createResponse()
+                    success: false,
+                    previousItemId: toolCall.itemId
+                ))
+                try? voiceService?.createResponse()
             }
 
             // Fetch rich preview asynchronously to update UI
             Task { @MainActor in
                 let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
-                let preview = await tool.generatePreview(from: toolCall.function.arguments, orchestrator: xToolOrchestrator)
+                let preview = await tool.generatePreview(from: toolCall.arguments, orchestrator: xToolOrchestrator)
 
                 // Update with rich preview if still in queue
                 if let index = pendingToolCallQueue.firstIndex(where: { $0.id == toolCall.id }) {
                     pendingToolCallQueue[index] = PendingToolCall(
                         id: toolCall.id,
                         functionName: functionName,
-                        arguments: toolCall.function.arguments,
+                        arguments: toolCall.arguments,
                         previewTitle: preview?.title ?? "Allow \(functionName)?",
-                        previewContent: preview?.content ?? toolCall.function.arguments
+                        previewContent: preview?.content ?? toolCall.arguments
                     )
                 }
             }
@@ -378,13 +327,11 @@ class VoiceAssistantViewModel: NSObject {
         guard let toolCall = pendingToolCallQueue.first else { return }
 
         // Execute the approved tool
-        let voiceToolCall = ConversationEvent.ToolCall(
+        let voiceToolCall = VoiceToolCall(
             id: toolCall.id,
-            type: "function",
-            function: ConversationEvent.FunctionCall(
-                name: toolCall.functionName,
-                arguments: toolCall.arguments
-            )
+            name: toolCall.functionName,
+            arguments: toolCall.arguments,
+            itemId: nil
         )
         executeTool(voiceToolCall)
 
@@ -395,11 +342,12 @@ class VoiceAssistantViewModel: NSObject {
     func rejectToolCall() {
         guard let toolCall = pendingToolCallQueue.first else { return }
 
-        try? xaiService?.sendToolOutput(
+        try? voiceService?.sendToolOutput(VoiceToolOutput(
             toolCallId: toolCall.id,
             output: "User denied this action.",
-            success: false
-        )
+            success: false,
+            previousItemId: nil
+        ))
 
         addConversationItem(.toolCall(name: toolCall.functionName, status: .rejected))
 
@@ -411,21 +359,22 @@ class VoiceAssistantViewModel: NSObject {
         // Remove the current focused tool
         pendingToolCallQueue.removeFirst()
 
-        // Notify Grok about the next focused tool if there is one
+        // Notify voice assistant about the next focused tool if there is one
         if let nextTool = pendingToolCallQueue.first {
-            try? xaiService?.sendToolOutput(
+            try? voiceService?.sendToolOutput(VoiceToolOutput(
                 toolCallId: nextTool.id,
                 output: "This action requires user confirmation. Tool call ID: \(nextTool.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
-                success: false
-            )
-            try? xaiService?.createResponse()
+                success: false,
+                previousItemId: nil
+            ))
+            try? voiceService?.createResponse()
         }
     }
 
-    private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
+    private func executeTool(_ toolCall: VoiceToolCall) {
         Task {
             // Handle voice confirmation tools specially
-            if let tool = XTool(rawValue: toolCall.function.name), tool == .confirmAction || tool == .cancelAction {
+            if let tool = XTool(rawValue: toolCall.name), tool == .confirmAction || tool == .cancelAction {
 
                 struct ConfirmationParams: Codable {
                     let tool_call_id: String
@@ -433,38 +382,38 @@ class VoiceAssistantViewModel: NSObject {
 
                 let params = try? JSONDecoder().decode(
                     ConfirmationParams.self,
-                    from: toolCall.function.arguments.data(using: .utf8) ?? Data()
+                    from: toolCall.arguments.data(using: .utf8) ?? Data()
                 )
                 let originalToolCallId = params?.tool_call_id ?? "unknown"
                 let originalItemId = sessionState.toolCalls.first { $0.id == originalToolCallId }?.call.itemId
 
                 switch tool {
                 case .confirmAction:
-                    try? xaiService?.sendToolOutput(
+                    try? voiceService?.sendToolOutput(VoiceToolOutput(
                         toolCallId: toolCall.id,
                         output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily. You can say anything, however don't misguide the user assuming the request is done - because it isn't.",
                         success: true,
                         previousItemId: originalItemId
-                    )
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    ))
+                    addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
                     approveToolCall()
                 case .cancelAction:
                     rejectToolCall()
-                    try? xaiService?.sendToolOutput(
+                    try? voiceService?.sendToolOutput(VoiceToolOutput(
                         toolCallId: toolCall.id,
                         output: "User cancelled the action. Original tool call ID: \(originalToolCallId). The action was not executed.",
                         success: true,
                         previousItemId: originalItemId
-                    )
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    ))
+                    addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
                 default: fatalError("Will never happen.")
                 }
 
                 return
             }
             // Handle remaining X tools normally
-            else if let tool = XTool(rawValue: toolCall.function.name),
-                      let data = toolCall.function.arguments.data(using: .utf8),
+            else if let tool = XTool(rawValue: toolCall.name),
+                      let data = toolCall.arguments.data(using: .utf8),
                       let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 let outputString: String
                 let isSuccess: Bool
@@ -484,14 +433,15 @@ class VoiceAssistantViewModel: NSObject {
                     isSuccess = false
                 }
 
-                // Send result back to XAI
-                try? xaiService?.sendToolOutput(
+                // Send result back to voice service
+                try? voiceService?.sendToolOutput(VoiceToolOutput(
                     toolCallId: toolCall.id,
                     output: outputString,
-                    success: isSuccess
-                )
+                    success: isSuccess,
+                    previousItemId: toolCall.itemId
+                ))
 
-                addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
+                addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: isSuccess)))
             }
         }
     }
@@ -559,7 +509,7 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             }
 
             do {
-                try xaiService?.sendAudioChunk(data)
+                try voiceService?.sendAudioChunk(data)
             } catch {
                 AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
                 // Stop streaming to prevent error cascade
