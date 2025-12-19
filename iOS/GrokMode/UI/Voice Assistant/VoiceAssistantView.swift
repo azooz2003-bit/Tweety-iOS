@@ -11,6 +11,7 @@ struct VoiceAssistantView: View {
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
+    @State private var showSettings = false
 
     let shouldAutoconnect: Bool
 
@@ -45,6 +46,14 @@ struct VoiceAssistantView: View {
               }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gear")
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Menu("Voice Service") {
                             Picker("Service", selection: $viewModel.selectedServiceType) {
@@ -79,7 +88,7 @@ struct VoiceAssistantView: View {
                         }
                         #endif
                     } label: {
-                        Label("", systemImage: "ellipsis")
+                        Image(systemName: "gear")
                     }
                 }
 
@@ -101,6 +110,13 @@ struct VoiceAssistantView: View {
                     ToolbarSpacer(.fixed, placement: .bottomBar)
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
                     ToolbarSpacer(.fixed, placement: .bottomBar)
+
+                    ToolbarItem(placement: .bottomBar) {
+                        Text(viewModel.formattedSessionDuration)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
 
                     ToolbarItem(placement:.bottomBar) {
                         stopButton
@@ -131,6 +147,11 @@ struct VoiceAssistantView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(onLogout: {
+                await viewModel.logoutX()
+            })
         }
     }
 
