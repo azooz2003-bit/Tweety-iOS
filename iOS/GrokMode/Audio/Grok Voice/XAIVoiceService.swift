@@ -401,6 +401,11 @@ class XAIVoiceService: VoiceService {
         try sendMessage(toolOutput)
     }
 
+    func truncateResponse() throws {
+        // xAI doesn't support truncation API - no-op
+        AppLogger.voice.debug("Truncation not supported for xAI")
+    }
+
     // MARK: - Message Handling
 
     func sendMessage(_ message: XAIConversationEvent) throws {

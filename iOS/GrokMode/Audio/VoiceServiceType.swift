@@ -33,7 +33,7 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
     func createService(sessionState: SessionState) -> VoiceService {
         switch self {
         case .xai:
-            return XAIVoiceService(sessionState: sessionState, sampleRate: .thirtyTwoKHz)
+            return XAIVoiceService(sessionState: sessionState, sampleRate: .twentyFourKHz)
         case .openai:
             return OpenAIVoiceService(sessionState: sessionState, sampleRate: 24000)
         }

@@ -225,7 +225,8 @@ class VoiceAssistantViewModel: NSObject {
             break
 
         case .userSpeechStarted:
-            // User started speaking
+            // User started speaking - truncate ongoing response and stop playback
+            try? voiceService?.truncateResponse()
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
@@ -395,6 +396,7 @@ class VoiceAssistantViewModel: NSObject {
                         success: true,
                         previousItemId: originalItemId
                     ))
+                    try? voiceService?.createResponse()
                     addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
                     approveToolCall()
                 case .cancelAction:
@@ -405,6 +407,7 @@ class VoiceAssistantViewModel: NSObject {
                         success: true,
                         previousItemId: originalItemId
                     ))
+                    try? voiceService?.createResponse()
                     addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
                 default: fatalError("Will never happen.")
                 }
@@ -440,6 +443,9 @@ class VoiceAssistantViewModel: NSObject {
                     success: isSuccess,
                     previousItemId: toolCall.itemId
                 ))
+
+                // Request assistant to respond with the tool result
+                try? voiceService?.createResponse()
 
                 addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: isSuccess)))
             }
@@ -520,17 +526,21 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
 
     nonisolated func audioStreamerDidDetectSpeechStart() {
         Task { @MainActor in
-            // Speech framework detected actual speech (not just noise)
-            // Immediately interrupt Grok's playback for faster response
-            AppLogger.audio.debug("🗣️ Speech framework detected user speaking - interrupting Grok")
+            // Speech framework detected actual speech
+            AppLogger.audio.debug("🗣️ Speech framework detected user speaking")
         }
     }
 
     nonisolated func audioStreamerDidDetectSpeechEnd() {
         Task { @MainActor in
-            // Speech framework detected silence
-            // Server-side VAD will handle the buffer commit when ready
-            AppLogger.audio.debug("🤫 Speech framework detected silence")
+            // Speech framework detected silence - attempt commit (may fail if buffer is empty)
+            AppLogger.audio.debug("🤫 Speech framework detected silence - committing buffer")
+            do {
+                try voiceService?.commitAudioBuffer()
+            } catch {
+                // Silently ignore invalid_request_error for empty buffer
+                AppLogger.audio.debug("Buffer commit failed (likely empty): \(error.localizedDescription)")
+            }
         }
     }
 

@@ -43,6 +43,9 @@ struct OpenAIRealtimeEvent: Codable {
     let transcript: String?
     let text: String?
 
+    // Truncation related
+    let audio_end_ms: Int?
+
     /// OpenAI Realtime API event types
     enum MessageEventType: String, Codable {
         // Server events

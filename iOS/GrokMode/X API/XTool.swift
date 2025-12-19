@@ -424,11 +424,7 @@ enum XTool: String, CaseIterable, Identifiable {
             )
 
         case .getAuthenticatedUser:
-            return .object(
-                properties: [
-                    "_unused" : .string(description: "Dummy property to satisfy the compiler")
-                ]
-            )
+            return .empty
 
         case .getUserFollowing:
             return .object(
@@ -835,9 +831,7 @@ enum XTool: String, CaseIterable, Identifiable {
 
         // MARK: - Trends
         case .getPersonalizedTrends:
-            return .object(properties: [
-                "_unused" : .string(description: "Dummy property to satisfy the compiler")
-            ])
+            return .empty
 
         // MARK: - Community Notes
         case .createNote:

@@ -60,6 +60,10 @@ class OpenAIVoiceService: VoiceService {
     """
     private let sampleRate: Int
 
+    // Track current assistant response item for truncation
+    private var currentAssistantItemId: String?
+    private var currentAudioDurationMs: Int = 0
+
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
     var onDisconnected: ((Error?) -> Void)?
@@ -119,6 +123,14 @@ class OpenAIVoiceService: VoiceService {
 
         case .responseOutputAudioDelta:
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
+                // Track item_id from audio events for truncation
+                if let itemId = message.item_id {
+                    currentAssistantItemId = itemId
+                }
+
+                // Track audio duration for truncation (24kHz, 16-bit PCM, mono)
+                let durationMs = (audioData.count / 2) * 1000 / sampleRate  // 2 bytes per sample
+                currentAudioDurationMs += durationMs
                 return .audioDelta(data: audioData)
             }
             return .other
@@ -269,12 +281,8 @@ class OpenAIVoiceService: VoiceService {
                         ),
                         transcription: nil,
                         noise_reduction: nil,
-                        turn_detection: .semanticVad(
-                            OpenAIRealtimeEvent.TurnDetection.SemanticVAD(
-                                create_response: true, // Automatically create response when user stops speaking
-                                eagerness: "auto", // auto = medium (can be low, medium, high, auto)
-                                interrupt_response: true // Allow user to interrupt assistant
-                            )
+                        turn_detection: .serverVad(
+                            OpenAIRealtimeEvent.TurnDetection.ServerVAD(create_response: true, idle_timeout_ms: 5000, interrupt_response: true, prefix_padding_ms: 300, silence_duration_ms: 800, threshold: 0.3)
                         )
                     ),
                     output: OpenAIRealtimeEvent.AudioConfig.Output(
@@ -310,7 +318,8 @@ class OpenAIVoiceService: VoiceService {
             name: nil,
             arguments: nil,
             transcript: nil,
-            text: nil
+            text: nil,
+            audio_end_ms: nil
         )
 
         try sendMessage(sessionConfig)
@@ -337,7 +346,8 @@ class OpenAIVoiceService: VoiceService {
             name: nil,
             arguments: nil,
             transcript: nil,
-            text: nil
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
@@ -361,7 +371,8 @@ class OpenAIVoiceService: VoiceService {
             name: nil,
             arguments: nil,
             transcript: nil,
-            text: nil
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
@@ -385,7 +396,8 @@ class OpenAIVoiceService: VoiceService {
             name: nil,
             arguments: nil,
             transcript: nil,
-            text: nil
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
@@ -422,9 +434,46 @@ class OpenAIVoiceService: VoiceService {
             name: nil,
             arguments: nil,
             transcript: nil,
-            text: nil
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(toolOutput)
+    }
+
+    func truncateResponse() throws {
+        guard let itemId = currentAssistantItemId else {
+            AppLogger.voice.warning("No assistant item to truncate")
+            return
+        }
+
+        let truncateMessage = OpenAIRealtimeEvent(
+            type: .conversationItemTruncate,
+            event_id: nil,
+            error: nil,
+            session: nil,
+            audio: nil,
+            delta: nil,
+            item: nil,
+            item_id: itemId,
+            previous_item_id: nil,
+            response: nil,
+            response_id: nil,
+            output_index: nil,
+            content_index: 0, // Always 0 per OpenAI docs
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: currentAudioDurationMs
+        )
+
+        AppLogger.voice.info("Truncating response at \(self.currentAudioDurationMs)ms for item: \(itemId)")
+        try sendMessage(truncateMessage)
+
+        // Reset tracking after truncation
+        currentAssistantItemId = nil
+        currentAudioDurationMs = 0
     }
 
     // MARK: - Message Handling
@@ -502,6 +551,12 @@ class OpenAIVoiceService: VoiceService {
         case .sessionUpdated:
             AppLogger.voice.info("Session configured successfully")
             onConnected?()
+
+        case .responseCreated:
+            // Reset audio duration tracking for new response
+            currentAudioDurationMs = 0
+            currentAssistantItemId = nil
+            AppLogger.voice.debug("New response created, reset audio tracking")
 
         case .responseFunctionCallArgumentsDone:
             if let callId = message.call_id,

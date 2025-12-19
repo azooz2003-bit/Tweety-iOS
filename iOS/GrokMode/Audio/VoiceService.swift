@@ -35,6 +35,9 @@ protocol VoiceService: AnyObject {
 
     // Tool handling - use abstracted types
     func sendToolOutput(_ output: VoiceToolOutput) throws
+
+    // Response control
+    func truncateResponse() throws
 }
 
 /// Common errors that can occur with voice services
