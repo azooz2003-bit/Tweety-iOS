@@ -11,6 +11,7 @@ struct VoiceAssistantView: View {
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
+    @State private var showSettings = false
 
     let shouldAutoconnect: Bool
 
@@ -45,16 +46,10 @@ struct VoiceAssistantView: View {
               }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Button {
-                            Task {
-                                await viewModel.logoutX()
-                            }
-                        } label: {
-                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-                        }
+                    Button {
+                        showSettings = true
                     } label: {
-                        Label("", systemImage: "ellipsis")
+                        Image(systemName: "gear")
                     }
                 }
 
@@ -113,6 +108,11 @@ struct VoiceAssistantView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(onLogout: {
+                await viewModel.logoutX()
+            })
         }
     }
 
