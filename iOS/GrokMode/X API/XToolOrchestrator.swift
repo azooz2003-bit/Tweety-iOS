@@ -76,17 +76,18 @@ actor XToolOrchestrator {
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
                 return .success(id: id, toolName: tool.name, response: responseString, statusCode: httpResponse.statusCode)
-            } else if httpResponse.statusCode == 401 && attempt == 1 {
-                // 401 on first attempt - token might have been revoked or invalid
-                // Force logout and return clear error
-                AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - User needs to authenticate")
-                await authService.logout()
+            } else if httpResponse.statusCode == 401 {
+                // 401 = unauthorized (permissions issue or other API error)
+                // Note: Token refresh is already handled by getValidAccessToken()
+                // If refresh token was expired, user would already be logged out (getValidAccessToken returns nil)
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unauthorized"
+                AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - \(errorMessage)")
                 return .failure(
                     id: id,
                     toolName: tool.name,
                     error: XToolCallError(
-                        code: "AUTH_REQUIRED",
-                        message: "Authentication required. Please log in to your X/Twitter account to perform this action."
+                        code: "UNAUTHORIZED",
+                        message: "You don't have permission to perform this action: \(errorMessage)"
                     ),
                     statusCode: httpResponse.statusCode
                 )

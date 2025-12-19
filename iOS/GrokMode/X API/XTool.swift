@@ -424,9 +424,7 @@ enum XTool: String, CaseIterable, Identifiable {
             )
 
         case .getAuthenticatedUser:
-            return .object(
-                properties: [:]
-            )
+            return .empty
 
         case .getUserFollowing:
             return .object(
@@ -833,7 +831,7 @@ enum XTool: String, CaseIterable, Identifiable {
 
         // MARK: - Trends
         case .getPersonalizedTrends:
-            return .object(properties: [:])
+            return .empty
 
         // MARK: - Community Notes
         case .createNote:

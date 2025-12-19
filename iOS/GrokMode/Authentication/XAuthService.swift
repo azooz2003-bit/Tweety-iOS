@@ -322,7 +322,7 @@ public actor XAuthService {
     /// Refresh the access token using the refresh token
     /// Auto-handles token refresh internally
     /// Throws network errors - session expiry is auto-handled via logout
-    private func refreshAccessToken() async throws -> String {
+    func refreshAccessToken() async throws -> String {
         guard let refreshToken = await keychain.getString(for: refreshTokenKey) else {
             // No refresh token - session expired, will be handled by caller
             throw AuthError.networkError("No refresh token available")

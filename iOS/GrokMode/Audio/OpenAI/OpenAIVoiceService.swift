@@ -1,8 +1,8 @@
 //
-//  XAIVoiceService.swift
+//  OpenAIVoiceService.swift
 //  GrokMode
 //
-//  Created by Matt Steele on 12/7/25.
+//  Created by Abdulaziz Albahar on 12/18/25.
 //
 
 import Foundation
@@ -10,20 +10,24 @@ import OSLog
 import JSONSchema
 internal import OrderedCollections
 
-class XAIVoiceService: VoiceService {
-    private let baseProxyURL: URL = Config.baseXAIProxyURL
-    private let baseURL: URL = Config.baseXAIURL
-    private var sessionURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
-    private var websocketURL: URL { baseURL.appending(path: "v1/realtime")}
+class OpenAIVoiceService: VoiceService {
+    private let baseProxyURL: URL = Config.baseOpenAIProxyURL
+    private let baseURL: URL = Config.baseOpenAIURL
+    private var tokenURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
+    private var websocketURL: URL { baseURL.appending(path: "v1/realtime").appending(queryItems: [URLQueryItem(name: "model", value: "gpt-realtime")]) }
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession
     let sessionState: SessionState
 
-    var requiredSampleRate: Int { sampleRate.rawValue }
+    var requiredSampleRate: Int { sampleRate }
 
-    // Configuration
-    let voice = XAIConversationEvent.SessionConfig.Voice.Leo
+    // Configuration - OpenAI specific
+    enum Voice: String, Codable {
+        case alloy, ash, ballad, coral, echo, sage, shimmer, verse
+    }
+
+    let voice = Voice.alloy
     var instructions = """
     You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
 
@@ -50,11 +54,15 @@ class XAIVoiceService: VoiceService {
     - Always aim to provide a summary rather than the whole answer. For instance, if you're prompted to fetch any content, don't read all of them verbatim unless explicitly asked to do so.
     - Always plan the chain of tool calls you plan to make meticulously. For instance, if you need to search the authenticated user's followers before dm'ing that follower (the user asked you "dm person XYZ from my followers"), start by calling get_authenticated_user => then get_user_followers => then finally send_dm_to_participant. Plan your tool calls carefully and as it makes sense.
     - If you make multiple tool calls, or are in the process of making multiple tool calls, don't speak until all the tool calls you've made are done.
-    
+
     Listen carefully to user intent, not just keywords
     If unclear, ask for clarification rather than guessing
     """
-    private let sampleRate: XAIConversationEvent.AudioFormatType.SampleRate
+    private let sampleRate: Int
+
+    // Track current assistant response item for truncation
+    private var currentAssistantItemId: String?
+    private var currentAudioDurationMs: Int = 0
 
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
@@ -62,7 +70,7 @@ class XAIVoiceService: VoiceService {
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
+    init(sessionState: SessionState, sampleRate: Int = 24000) {
         self.sessionState = sessionState
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
@@ -70,19 +78,27 @@ class XAIVoiceService: VoiceService {
 
     // MARK: - Translation Helpers
 
-    /// Translate VoiceToolDefinition to XAI format
-    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> XAIConversationEvent.ToolDefinition {
-        // Convert parameters dictionary to JSONSchema
+    /// Translate VoiceToolDefinition to OpenAI format
+    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> OpenAIRealtimeEvent.ToolDefinition {
+        let params = tool.parameters
+
+        // Convert existing parameters to JSONSchema
         let schema: JSONSchema
         do {
-            let data = try JSONSerialization.data(withJSONObject: tool.parameters)
+            let data = try JSONSerialization.data(withJSONObject: params)
             schema = try JSONDecoder().decode(JSONSchema.self, from: data)
         } catch {
-            // Fallback to empty schema
-            schema = .object(properties: [:], required: [], additionalProperties: nil)
+            // Fallback with dummy parameter
+            schema = .object(
+                properties: [
+                    "_unused": .string(description: "Unused parameter - this function takes no parameters")
+                ],
+                required: [],
+                additionalProperties: nil
+            )
         }
 
-        return XAIConversationEvent.ToolDefinition(
+        return OpenAIRealtimeEvent.ToolDefinition(
             type: tool.type,
             name: tool.name,
             description: tool.description,
@@ -90,10 +106,10 @@ class XAIVoiceService: VoiceService {
         )
     }
 
-    /// Translate XAI event to abstracted VoiceEvent
-    private func translateEvent(_ message: XAIConversationEvent) -> VoiceEvent {
+    /// Translate OpenAI event to abstracted VoiceEvent
+    private func translateEvent(_ message: OpenAIRealtimeEvent) -> VoiceEvent {
         switch message.type {
-        case .conversationCreated:
+        case .conversationCreated, .sessionCreated:
             return .sessionCreated
 
         case .sessionUpdated:
@@ -107,6 +123,14 @@ class XAIVoiceService: VoiceService {
 
         case .responseOutputAudioDelta:
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
+                // Track item_id from audio events for truncation
+                if let itemId = message.item_id {
+                    currentAssistantItemId = itemId
+                }
+
+                // Track audio duration for truncation (24kHz, 16-bit PCM, mono)
+                let durationMs = (audioData.count / 2) * 1000 / sampleRate  // 2 bytes per sample
+                currentAudioDurationMs += durationMs
                 return .audioDelta(data: audioData)
             }
             return .other
@@ -125,23 +149,11 @@ class XAIVoiceService: VoiceService {
             }
             return .other
 
-        case .responseOutputItemAdded:
-            if let item = message.item, let toolCalls = item.tool_calls {
-                // Return first tool call as event (others will be in subsequent events)
-                if let firstCall = toolCalls.first {
-                    let toolCall = VoiceToolCall(
-                        id: firstCall.id,
-                        name: firstCall.function.name,
-                        arguments: firstCall.function.arguments,
-                        itemId: item.id
-                    )
-                    return .toolCall(toolCall)
-                }
-            }
-            return .other
-
         case .error:
-            if let errorText = message.text {
+            if let error = message.error {
+                let errorMsg = "\(error.type ?? "Error"): \(error.message ?? "Unknown error") (code: \(error.code ?? "none"))"
+                return .error(errorMsg)
+            } else if let errorText = message.text {
                 return .error(errorText)
             }
             return .error("Unknown error")
@@ -153,23 +165,35 @@ class XAIVoiceService: VoiceService {
 
     // MARK: - Token Acquisition
     func getEphemeralToken() async throws -> SessionToken {
-        AppLogger.network.info("Requesting ephemeral token")
+        AppLogger.network.info("Requesting OpenAI ephemeral token")
 
-        var request = URLRequest(url: sessionURL)
+        var request = URLRequest(url: tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
-        let requestBody = ["expires_after": ["seconds": 300]]
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        // OpenAI requires session configuration wrapped in "session" key
+        let requestBody: [String: Any] = [
+            "session": [
+                "type": "realtime",
+                "model": "gpt-realtime",
+                "audio": [
+                    "output": [
+                        "voice": voice.rawValue
+                    ]
+                ]
+            ]
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
 
         #if DEBUG
-        AppLogger.network.debug("Token request URL: \(self.sessionURL.absoluteString)")
-        AppLogger.logSensitive(AppLogger.network, level: .debug, "Request headers: \(request.allHTTPHeaderFields?.description ?? "none")")
+        AppLogger.network.debug("Token request URL: \(self.tokenURL.absoluteString)")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, "Request body: \(String(data: request.httpBody!, encoding: .utf8) ?? "")")
         #endif
 
         do {
-            let (data, response) = try await urlSession.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 AppLogger.network.error("Invalid HTTP response type")
@@ -189,6 +213,7 @@ class XAIVoiceService: VoiceService {
                 throw VoiceServiceError.apiError(statusCode: httpResponse.statusCode, message: errorText)
             }
 
+            // OpenAI returns: {"value": "token", "expires_at": timestamp}
             let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
 
             #if DEBUG
@@ -210,7 +235,7 @@ class XAIVoiceService: VoiceService {
 
     // MARK: - WebSocket Connection
     func connect() async throws {
-        AppLogger.voice.info("Connecting to XAI Voice API")
+        AppLogger.voice.info("Connecting to OpenAI Voice API via WebSocket")
 
         let token = try await getEphemeralToken()
 
@@ -230,185 +255,229 @@ class XAIVoiceService: VoiceService {
     }
 
     // MARK: - Session Configuration
-
     func configureSession(config: VoiceSessionConfig, tools: [VoiceToolDefinition]?) throws {
-        AppLogger.voice.info("Configuring voice session")
+        AppLogger.voice.info("Configuring OpenAI voice session")
 
-        // Translate abstracted tool definitions to xAI format
-        let xaiTools = tools?.map { translateToolDefinition($0) }
+        // Translate abstracted tool definitions to OpenAI format
+        let openAITools = tools?.map { translateToolDefinition($0) }
 
-        // xAI format: voice and turnDetection are at session level
-        let sessionConfig = XAIConversationEvent(
+        // OpenAI format: voice and turn_detection are nested in audio.input/output
+        let sessionConfig = OpenAIRealtimeEvent(
             type: .sessionUpdate,
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: XAIConversationEvent.SessionConfig(
+            event_id: nil,
+            error: nil,
+            session: OpenAIRealtimeEvent.SessionConfig(
+                id: nil,
+                object: nil,
+                type: "realtime",
+                model: "gpt-realtime",
                 instructions: config.instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).",
-                voice: voice,
-                audio: XAIConversationEvent.AudioConfig(
-                    input: XAIConversationEvent.AudioFormat(
-                        format: XAIConversationEvent.AudioFormatType(
-                            type: .audioPcm,
-                            rate: sampleRate
+                voice: nil, // Not used in OpenAI - it's in audio.output.voice
+                audio: OpenAIRealtimeEvent.AudioConfig(
+                    input: OpenAIRealtimeEvent.AudioConfig.Input(
+                        format: OpenAIRealtimeEvent.AudioConfig.Input.Format(
+                            type: "audio/pcm",
+                            rate: config.sampleRate
                         ),
+                        transcription: nil,
+                        noise_reduction: nil,
+                        turn_detection: .serverVad(
+                            OpenAIRealtimeEvent.TurnDetection.ServerVAD(create_response: true, idle_timeout_ms: 5000, interrupt_response: true, prefix_padding_ms: 300, silence_duration_ms: 800, threshold: 0.3)
+                        )
                     ),
-                    output: XAIConversationEvent.AudioFormat(
-                        format: XAIConversationEvent.AudioFormatType(
-                            type: .audioPcm,
-                            rate: sampleRate
+                    output: OpenAIRealtimeEvent.AudioConfig.Output(
+                        format: OpenAIRealtimeEvent.AudioConfig.Output.Format(
+                            type: "audio/pcm",
+                            rate: config.sampleRate
                         ),
+                        voice: voice.rawValue,
+                        speed: nil
                     )
                 ),
-                turnDetection: XAIConversationEvent.TurnDetection(type: .serverVad),
-                tools: xaiTools,
-                tool_choice: xaiTools != nil ? "auto" : nil,
+                turn_detection: nil, // Not used in OpenAI - it's in audio.input.turn_detection
+                tools: openAITools,
+                tool_choice: openAITools != nil ? "auto" : nil,
+                output_modalities: ["audio"], // OpenAI only supports ["audio"] or ["text"], not both
+                max_output_tokens: nil,
+                tracing: nil,
+                truncation: nil,
+                prompt: nil,
+                expires_at: nil,
+                include: nil
             ),
+            audio: nil,
+            delta: nil,
             item: nil,
-            event_id: nil,
+            item_id: nil,
             previous_item_id: nil,
+            response: nil,
             response_id: nil,
             output_index: nil,
-            item_id: nil,
             content_index: nil,
-            audio_start_ms: nil,
-            audio_end_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: nil
         )
 
         try sendMessage(sessionConfig)
     }
 
     // MARK: - Audio Streaming
-
     func sendAudioChunk(_ audioData: Data) throws {
         let base64Audio = audioData.base64EncodedString()
-        let message = XAIConversationEvent(
+        let message = OpenAIRealtimeEvent(
             type: .inputAudioBufferAppend,
-            audio: base64Audio,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: nil,
             event_id: nil,
+            error: nil,
+            session: nil,
+            audio: base64Audio,
+            delta: nil,
+            item: nil,
+            item_id: nil,
             previous_item_id: nil,
+            response: nil,
             response_id: nil,
             output_index: nil,
-            item_id: nil,
             content_index: nil,
-            audio_start_ms: nil,
-            audio_end_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
 
     func commitAudioBuffer() throws {
-        let message = XAIConversationEvent(
+        let message = OpenAIRealtimeEvent(
             type: .inputAudioBufferCommit,
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: nil,
             event_id: nil,
+            error: nil,
+            session: nil,
+            audio: nil,
+            delta: nil,
+            item: nil,
+            item_id: nil,
             previous_item_id: nil,
+            response: nil,
             response_id: nil,
             output_index: nil,
-            item_id: nil,
             content_index: nil,
-            audio_start_ms: nil,
-            audio_end_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
 
     func createResponse() throws {
-        let message = XAIConversationEvent(
+        let message = OpenAIRealtimeEvent(
             type: .responseCreate,
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: nil,
             event_id: nil,
+            error: nil,
+            session: nil,
+            audio: nil,
+            delta: nil,
+            item: nil,
+            item_id: nil,
             previous_item_id: nil,
+            response: nil,
             response_id: nil,
             output_index: nil,
-            item_id: nil,
             content_index: nil,
-            audio_start_ms: nil,
-            audio_end_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(message)
     }
-    
+
     func sendToolOutput(_ output: VoiceToolOutput) throws {
-        // Log response to SessionState
         sessionState.updateResponse(id: output.toolCallId, responseString: output.output, success: output.success)
 
-        let toolOutput = XAIConversationEvent(
+        let toolOutput = OpenAIRealtimeEvent(
             type: .conversationItemCreate,
-            audio: nil,
-            text: nil,
-            delta: nil,
+            event_id: nil,
+            error: nil,
             session: nil,
-            item: XAIConversationEvent.ConversationItem(
+            audio: nil,
+            delta: nil,
+            item: OpenAIRealtimeEvent.Item(
                 id: nil,
                 object: nil,
                 type: "function_call_output",
                 status: nil,
                 role: nil,
                 content: nil,
-                tool_calls: nil,
                 call_id: output.toolCallId,
                 output: output.output,
                 name: nil,
                 arguments: nil
             ),
-            event_id: nil,
+            item_id: nil,
             previous_item_id: output.previousItemId,
+            response: nil,
             response_id: nil,
             output_index: nil,
-            item_id: nil,
             content_index: nil,
-            audio_start_ms: nil,
-            audio_end_ms: nil,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: nil
         )
         try sendMessage(toolOutput)
     }
 
     func truncateResponse() throws {
-        // xAI doesn't support truncation API - no-op
-        AppLogger.voice.debug("Truncation not supported for xAI")
+        guard let itemId = currentAssistantItemId else {
+            AppLogger.voice.warning("No assistant item to truncate")
+            return
+        }
+
+        let truncateMessage = OpenAIRealtimeEvent(
+            type: .conversationItemTruncate,
+            event_id: nil,
+            error: nil,
+            session: nil,
+            audio: nil,
+            delta: nil,
+            item: nil,
+            item_id: itemId,
+            previous_item_id: nil,
+            response: nil,
+            response_id: nil,
+            output_index: nil,
+            content_index: 0, // Always 0 per OpenAI docs
+            call_id: nil,
+            name: nil,
+            arguments: nil,
+            transcript: nil,
+            text: nil,
+            audio_end_ms: currentAudioDurationMs
+        )
+
+        AppLogger.voice.info("Truncating response at \(self.currentAudioDurationMs)ms for item: \(itemId)")
+        try sendMessage(truncateMessage)
+
+        // Reset tracking after truncation
+        currentAssistantItemId = nil
+        currentAudioDurationMs = 0
     }
 
     // MARK: - Message Handling
-
-    func sendMessage(_ message: XAIConversationEvent) throws {
+    func sendMessage(_ message: OpenAIRealtimeEvent) throws {
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
             throw VoiceServiceError.notConnected
         }
@@ -430,7 +499,6 @@ class XAIVoiceService: VoiceService {
     }
 
     private func receiveMessages() {
-        // Check if socket is still connected before trying to receive
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
             AppLogger.voice.warning("Attempted to receive on disconnected socket")
             return
@@ -461,7 +529,7 @@ class XAIVoiceService: VoiceService {
     }
 
     private func handleTextMessage(_ text: String) {
-        guard let message = try? JSONDecoder().decode(XAIConversationEvent.self, from: Data(text.utf8)) else {
+        guard let message = try? JSONDecoder().decode(OpenAIRealtimeEvent.self, from: Data(text.utf8)) else {
             #if DEBUG
             AppLogger.voice.warning("Received unanticipated message format")
             AppLogger.logSensitive(AppLogger.voice, level: .debug, "Message content: \(text)")
@@ -477,27 +545,30 @@ class XAIVoiceService: VoiceService {
         #endif
 
         switch message.type {
-        case .conversationCreated:
-            AppLogger.voice.info("Conversation created")
+        case .conversationCreated, .sessionCreated:
+            AppLogger.voice.info("Conversation/session created")
 
         case .sessionUpdated:
             AppLogger.voice.info("Session configured successfully")
             onConnected?()
 
+        case .responseCreated:
+            // Reset audio duration tracking for new response
+            currentAudioDurationMs = 0
+            currentAssistantItemId = nil
+            AppLogger.voice.debug("New response created, reset audio tracking")
+
         case .responseFunctionCallArgumentsDone:
-             if let callId = message.call_id,
-                let name = message.name,
-                let arguments = message.arguments {
-
-                 AppLogger.tools.info("Tool call received: \(name)")
-                 let params: [String: Any]? = {
-                     guard let data = arguments.data(using: .utf8) else { return nil }
-                     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                 }()
-
-                 // Store tool call with conversation item ID for context linking
-                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
-             }
+            if let callId = message.call_id,
+               let name = message.name,
+               let arguments = message.arguments {
+                AppLogger.tools.info("Tool call received: \(name)")
+                let params: [String: Any]? = {
+                    guard let data = arguments.data(using: .utf8) else { return nil }
+                    return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                }()
+                sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
+            }
 
         default:
             break
@@ -511,7 +582,6 @@ class XAIVoiceService: VoiceService {
     }
 
     // MARK: - Connection Management
-
     func disconnect() {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil

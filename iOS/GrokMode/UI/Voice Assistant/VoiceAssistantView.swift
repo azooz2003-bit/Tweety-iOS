@@ -52,6 +52,45 @@ struct VoiceAssistantView: View {
                         Image(systemName: "gear")
                     }
                 }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Menu("Voice Service") {
+                            Picker("Service", selection: $viewModel.selectedServiceType) {
+                                ForEach(VoiceServiceType.allCases) { serviceType in
+                                    Label(serviceType.displayName, systemImage: serviceType == .xai ? "circle.slash" : "brain.head.profile")
+                                        .tag(serviceType)
+                                }
+                            }
+                            .pickerStyle(.inline)
+                            .disabled(viewModel.isSessionActivated)
+                        }
+
+                        Section {
+                            Button {
+                                Task {
+                                    await viewModel.logoutX()
+                                }
+                            } label: {
+                                Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
+                        }
+
+                        #if DEBUG
+                        Section("Debug") {
+                            Button {
+                                Task {
+                                    await viewModel.testRefreshToken()
+                                }
+                            } label: {
+                                Label("Test Refresh Token", systemImage: "arrow.clockwise")
+                            }
+                        }
+                        #endif
+                    } label: {
+                        Image(systemName: "gear")
+                    }
+                }
 
                 ToolbarItem(placement:.bottomBar) {
                     if !viewModel.isSessionActivated {

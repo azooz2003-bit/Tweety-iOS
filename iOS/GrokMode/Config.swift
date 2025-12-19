@@ -23,7 +23,15 @@ enum Config {
         return URL(string: url)!
     }()
 
+    static let baseOpenAIProxyURL = {
+        guard let url = Bundle.main.infoDictionary?["BASE_OPENAI_PROXY_URL"] as? String else {
+            fatalError()
+        }
+        return URL(string: url)!
+    }()
+
     static let baseXAIURL = URL(string: "https://api.x.ai/")!
+    static let baseOpenAIURL = URL(string: "https://api.openai.com/")!
     static let baseXURL = URL(string: "https://api.x.com/")!
 
     static let appSecret = "34FxRVXGLo3hSikbYhH7a5n7JKHGSghaLrlddbD0/l8=" // TODO: replace with App Attest

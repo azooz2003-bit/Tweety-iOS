@@ -1,5 +1,6 @@
 export interface Env {
     X_AI_API_KEY: string;
+    OPENAI_API_KEY: string;
     APP_SECRET: string;
     X_OAUTH2_CLIENT_SECRET: string;
     X_OAUTH2_CLIENT_ID: string;
@@ -44,6 +45,43 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
             return new Response(response.body, {
                 headers: { 'Content-Type': 'application/json' }
             });
+        }
+
+        // Get ephemeral token for OpenAI Realtime API
+        if (url.pathname === '/openai/v1/realtime/client_secrets') {
+            try {
+                // Parse the request body from iOS client
+                const requestBody = await request.json();
+
+                // Forward to OpenAI with the API key
+                const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const responseData = await response.text();
+
+                // If OpenAI returned an error, pass it through
+                if (!response.ok) {
+                    return new Response(responseData, {
+                        status: response.status,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+
+                return new Response(responseData, {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (error) {
+                return new Response(JSON.stringify({
+                    error: 'OpenAI token request failed',
+                    details: error instanceof Error ? error.message : String(error)
+                }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+            }
         }
 
         // OAuth2: Exchange authorization code for access token
