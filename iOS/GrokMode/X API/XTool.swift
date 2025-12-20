@@ -60,6 +60,7 @@ enum XTool: String, CaseIterable, Identifiable {
     case retweet = "retweet"
     case unretweet = "unretweet"
     case getRetweets = "get_retweets"
+    case getRepostsOfMe = "get_reposts_of_me"
 
     // MARK: - Lists
     case createList = "create_list"
@@ -73,6 +74,12 @@ enum XTool: String, CaseIterable, Identifiable {
     case getListFollowers = "get_list_followers"
     case pinList = "pin_list"
     case unpinList = "unpin_list"
+    case getPinnedLists = "get_pinned_lists"
+    case getOwnedLists = "get_owned_lists"
+    case getFollowedLists = "get_followed_lists"
+    case followList = "follow_list"
+    case unfollowList = "unfollow_list"
+    case getListMemberships = "get_list_memberships"
 
     // MARK: - Direct Messages
     case createDMConversation = "create_dm_conversation"
@@ -160,6 +167,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .retweet: return "Retweet a tweet"
         case .unretweet: return "Remove a retweet"
         case .getRetweets: return "Get retweet posts of a specific tweet"
+        case .getRepostsOfMe: return "Get reposts of the authenticated user's tweets"
 
         // Lists
         case .createList: return "Create a new list"
@@ -173,6 +181,12 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getListFollowers: return "Get followers of a list"
         case .pinList: return "Pin a list"
         case .unpinList: return "Unpin a list"
+        case .getPinnedLists: return "Get pinned lists for a user"
+        case .getOwnedLists: return "Get lists owned by a user"
+        case .getFollowedLists: return "Get lists followed by a user"
+        case .followList: return "Follow a list"
+        case .unfollowList: return "Unfollow a list"
+        case .getListMemberships: return "Get lists that a user is a member of"
 
         // Direct Messages
         case .createDMConversation: return "Create a new DM conversation"
@@ -587,6 +601,13 @@ enum XTool: String, CaseIterable, Identifiable {
                 required: ["id"]
             )
 
+        case .getRepostsOfMe:
+            return .object(
+                properties: [
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
+                ]
+            )
+
         // MARK: - Lists
         case .createList:
             return .object(
@@ -687,6 +708,59 @@ enum XTool: String, CaseIterable, Identifiable {
                     "list_id": .string(description: "The list ID to unpin")
                 ],
                 required: ["id", "list_id"]
+            )
+
+        case .getPinnedLists:
+            return .object(
+                properties: [
+                    "id": .string(description: "The ID of the authenticated user")
+                ],
+                required: ["id"]
+            )
+
+        case .getOwnedLists:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose owned lists to retrieve"),
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
+                ],
+                required: ["id"]
+            )
+
+        case .getFollowedLists:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose followed lists to retrieve"),
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
+                ],
+                required: ["id"]
+            )
+
+        case .followList:
+            return .object(
+                properties: [
+                    "id": .string(description: "The authenticated user's ID"),
+                    "list_id": .string(description: "The list ID to follow")
+                ],
+                required: ["id", "list_id"]
+            )
+
+        case .unfollowList:
+            return .object(
+                properties: [
+                    "id": .string(description: "The authenticated user's ID"),
+                    "list_id": .string(description: "The list ID to unfollow")
+                ],
+                required: ["id", "list_id"]
+            )
+
+        case .getListMemberships:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose list memberships to retrieve"),
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
+                ],
+                required: ["id"]
             )
 
         // MARK: - Direct Messages
@@ -969,7 +1043,7 @@ extension XTool {
             return .requiresConfirmation
 
         // Lists
-        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList:
+        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList, .followList, .unfollowList:
             return .requiresConfirmation
 
         // Direct Messages
@@ -1481,6 +1555,40 @@ extension XTool {
             }
             return (title: "Unpin List", content: "📍 Unpin this list?")
 
+        case .followList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Follow List", content: "➕ \(listName)")
+            }
+            return (title: "Follow List", content: "➕ Follow this list?")
+
+        case .unfollowList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Unfollow List", content: "➖ \(listName)")
+            }
+            return (title: "Unfollow List", content: "➖ Unfollow this list?")
+
         // MARK: - Bookmarks
         case .addBookmark:
             let tweetId = params["tweet_id"] as? String ?? ""
@@ -1530,6 +1638,6 @@ extension XTool {
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .searchRecentTweets, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .searchRecentTweets, .getRepostsOfMe, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
     }
 }

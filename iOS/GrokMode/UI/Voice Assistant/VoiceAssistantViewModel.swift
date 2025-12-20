@@ -522,7 +522,7 @@ class VoiceAssistantViewModel: NSObject {
 
         let tweetTools: Set<XTool> = [
             .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
-            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline
+            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .getRepostsOfMe
         ]
 
         guard let data = response.data(using: .utf8),

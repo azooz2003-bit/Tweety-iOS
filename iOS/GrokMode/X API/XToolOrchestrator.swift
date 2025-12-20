@@ -448,6 +448,11 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
+        case .getRepostsOfMe:
+            path = "/2/users/reposts_of_me"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
+
         // MARK: - Lists
         case .createList:
             path = "/2/lists"
@@ -500,7 +505,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/followers"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .pinList:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -514,6 +519,44 @@ actor XToolOrchestrator {
             }
             path = "/2/users/\(id)/pinned_lists/\(listId)"
             method = .delete
+
+        case .getPinnedLists:
+            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(id)/pinned_lists"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
+
+        case .getOwnedLists:
+            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(id)/owned_lists"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
+
+        case .getFollowedLists:
+            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(id)/followed_lists"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
+
+        case .followList:
+            guard let id = parameters["id"], let listId = parameters["list_id"] else {
+                throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameters")
+            }
+            path = "/2/users/\(id)/followed_lists/\(listId)"
+            method = .post
+
+        case .unfollowList:
+            guard let id = parameters["id"], let listId = parameters["list_id"] else {
+                throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameters")
+            }
+            path = "/2/users/\(id)/followed_lists/\(listId)"
+            method = .delete
+
+        case .getListMemberships:
+            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(id)/list_memberships"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         // MARK: - Direct Messages
         case .createDMConversation:
