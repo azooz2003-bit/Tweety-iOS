@@ -494,7 +494,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getBlockedUsers:
             return .object(
                 properties: [
-                    "id": .string(description: "The user ID"),
+                    "id": .string(description: "The authenticated user's ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
                 ],
                 required: ["id"]
@@ -718,7 +718,7 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "conversation_type": .string(description: "Conversation type", enum: ["Group"]),
-                    "participant_ids": .array(description: "A list of user IDs associated with profiles you want to send the message to.", items: .string()),
+                    "participant_ids": .array(description: "A list of user IDs associated with profiles you want to send the message to. User IDs must be valid IDs for existing users.", items: .string()),
                     "message": .object(
                         properties: [
                             "text": .string(description: "Message text"),
@@ -739,7 +739,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .sendDMToConversation:
             return .object(
                 properties: [
-                    "dm_conversation_id": .string(description: "DM conversation ID"),
+                    "dm_conversation_id": .string(description: "DM conversation ID, must be valid for an actual conversation that exists in the authenticated user's account."),
                     "text": .string(description: "Message text, must not be empty"),
                     "attachments": .array(
                         description: "Media attachments",
@@ -756,7 +756,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .sendDMToParticipant:
             return .object(
                 properties: [
-                    "participant_id": .string(description: "Recipient user ID"),
+                    "participant_id": .string(description: "User ID associated with the profile you want to send the message to. User ID must be valid ID for existing user."),
                     "text": .string(description: "Message text, must not be empty."),
                     "attachments": .array(
                         description: "Media attachments", items: .object(
@@ -790,7 +790,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .deleteDMEvent:
             return .object(
                 properties: [
-                    "dm_event_id": .string(description: "DM event ID to delete")
+                    "dm_event_id": .string(description: "Event ID associated with the DM to delete. Event IDs must be valid IDs for existing DMs.")
                 ],
                 required: ["dm_event_id"]
             )
