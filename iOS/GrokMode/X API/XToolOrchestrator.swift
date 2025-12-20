@@ -146,7 +146,7 @@ actor XToolOrchestrator {
     private func enrichWithTweetFields(_ params: [String: Any]) -> [String: Any] {
         var enriched = params
         enriched["expansions"] = enriched["expansions"] ?? "attachments.poll_ids,attachments.media_keys,author_id,referenced_tweets.id"
-        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at,public_metrics,referenced_tweets,entities,conversation_id,in_reply_to_user_id"
+        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at,public_metrics,referenced_tweets,entities,conversation_id,in_reply_to_user_id,edit_controls,note_tweet,reply_settings"
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
         enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url"
         enriched["poll.fields"] = enriched["poll.fields"] ?? "options,voting_status,end_datetime"
@@ -182,6 +182,14 @@ actor XToolOrchestrator {
         return enriched
     }
 
+    /// Enriches parameters with all news-related fields
+    private func enrichWithNewsFields(_ params: [String: Any]) -> [String: Any] {
+        var enriched = params
+        // All news fields
+        enriched["news.fields"] = enriched["news.fields"] ?? "category,cluster_posts_results,contexts,disclaimer,hook,id,keywords,name,summary,updated_at"
+        return enriched
+    }
+
     internal func buildRequest(for tool: XTool, parameters: [String: Any]) async throws -> URLRequest {
         var path: String
         var method: HTTPMethod
@@ -214,6 +222,17 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)"
             method = .delete
+
+        case .editTweet:
+            guard let previousPostId = parameters["previous_post_id"], let text = parameters["text"] else {
+                throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameters: previous_post_id and text")
+            }
+            path = "/2/tweets"
+            method = .post
+            bodyParams = [
+                "edit_options": ["previous_post_id": previousPostId],
+                "text": text
+            ]
 
         case .getTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -253,28 +272,7 @@ actor XToolOrchestrator {
             path = "/2/tweets/search/all"
             method = .get
 
-            // ALWAYS include ALL available fields for complete tweet data
-            var enrichedParams = parameters
-
-            // All expansions
-            enrichedParams["expansions"] = "attachments.poll_ids,attachments.media_keys,author_id,edit_history_tweet_ids,entities.mentions.username,geo.place_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id"
-
-            // All tweet fields
-            enrichedParams["tweet.fields"] = "attachments,author_id,context_annotations,conversation_id,created_at,edit_controls,entities,geo,id,in_reply_to_user_id,lang,public_metrics,possibly_sensitive,referenced_tweets,reply_settings,source,text,withheld"
-
-            // All user fields
-            enrichedParams["user.fields"] = "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld"
-
-            // All media fields
-            enrichedParams["media.fields"] = "duration_ms,height,media_key,preview_image_url,type,url,width,public_metrics,alt_text,variants"
-
-            // Poll fields
-            enrichedParams["poll.fields"] = "duration_minutes,end_datetime,id,options,voting_status"
-
-            // Place fields
-            enrichedParams["place.fields"] = "contained_within,country,country_code,full_name,geo,id,name,place_type"
-
-            queryItems = buildQueryItems(from: enrichedParams)
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
 
         case .getRecentTweetCounts:
             path = "/2/tweets/counts/recent"
@@ -701,6 +699,19 @@ actor XToolOrchestrator {
             }
             path = "/2/media/\(mediaKey)"
             method = .get
+
+        // MARK: - News
+        case .getNewsById:
+            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/news/\(id)"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithNewsFields(parameters), excluding: ["id"])
+
+        case .searchNews:
+            path = "/2/news/search"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithNewsFields(parameters))
+
         case .confirmAction, .cancelAction:
             throw XToolCallError.init(code: "999", message: "Not expected to handle confirmation/cancellation of actions in orchestrator.")
         }

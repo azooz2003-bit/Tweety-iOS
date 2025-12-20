@@ -22,6 +22,7 @@ enum XTool: String, CaseIterable, Identifiable {
     case quoteTweet = "quote_tweet"
     case createPollTweet = "create_poll_tweet"
     case deleteTweet = "delete_tweet"
+    case editTweet = "edit_tweet"
     case getTweet = "get_tweet"
     case getTweets = "get_tweets"
     case getUserTweets = "get_user_tweets"
@@ -114,6 +115,10 @@ enum XTool: String, CaseIterable, Identifiable {
     case createMediaMetadata = "create_media_metadata"
     case getMediaAnalytics = "get_media_analytics"
 
+    // MARK: - News
+    case getNewsById = "get_news_by_id"
+    case searchNews = "search_news"
+
     // MARK: - Voice Confirmation
     case confirmAction = "confirm_action"
     case cancelAction = "cancel_action"
@@ -129,6 +134,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .quoteTweet: return "Quote tweet a specific tweet."
         case .createPollTweet: return "Create a poll tweet"
         case .deleteTweet: return "Delete a specific tweet by ID"
+        case .editTweet: return "Edit an existing tweet"
         case .getTweet: return "Get details of a specific tweet by ID"
         case .getTweets: return "Get multiple tweets by their IDs"
         case .getUserTweets: return "Get tweets posted by a specific user"
@@ -220,6 +226,10 @@ enum XTool: String, CaseIterable, Identifiable {
         case .finalizeChunkedUpload: return "Finalize chunked upload"
         case .createMediaMetadata: return "Create media metadata"
         case .getMediaAnalytics: return "Get media analytics"
+
+        // News
+        case .getNewsById: return "Get news story by ID"
+        case .searchNews: return "Search news stories"
 
         // Voice Confirmation
         case .confirmAction: return "Confirms and executes the pending action when the user says 'yes', 'confirm', 'do it', or similar affirmations"
@@ -317,6 +327,15 @@ enum XTool: String, CaseIterable, Identifiable {
                     "id": .string(description: "The tweet ID to delete. Make sure that a tweet with this ID exists and belongs to the authenticated user before passing it.")
                 ],
                 required: ["id"]
+            )
+
+        case .editTweet:
+            return .object(
+                properties: [
+                    "previous_post_id": .string(description: "The ID of the tweet to edit. This tweet must belong to the authenticated user."),
+                    "text": .string(description: "The new text content for the tweet")
+                ],
+                required: ["previous_post_id", "text"]
             )
 
         case .getTweet:
@@ -996,6 +1015,25 @@ enum XTool: String, CaseIterable, Identifiable {
                 required: ["media_key"]
             )
 
+        // MARK: - News
+        case .getNewsById:
+            return .object(
+                properties: [
+                    "id": .string(description: "The ID of the news story")
+                ],
+                required: ["id"]
+            )
+
+        case .searchNews:
+            return .object(
+                properties: [
+                    "query": .string(description: "The search query"),
+                    "max_results": .integer(description: "The number of results to return", minimum: 1, maximum: 100),
+                    "max_age_hours": .integer(description: "The maximum age of the news story to search for", minimum: 1, maximum: 720)
+                ],
+                required: ["query"]
+            )
+
         // MARK: - Voice Confirmation
         case .confirmAction:
             return .object(
@@ -1023,7 +1061,7 @@ extension XTool {
         // Write operations require confirmation
 
         // Posts/Tweets
-        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet:
+        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .editTweet:
             return .requiresConfirmation
 
         // Likes & Retweets
@@ -1178,6 +1216,28 @@ extension XTool {
                 return (title: "Delete Tweet", content: "🗑️ \"\(tweetText)\"")
             }
             return (title: "Delete Tweet", content: "🗑️ Delete this tweet?")
+
+        case .editTweet:
+            let previousPostId = params["previous_post_id"] as? String ?? ""
+            let newText = params["text"] as? String ?? ""
+
+            // Fetch the tweet to be edited
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": previousPostId,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let oldText = tweetData["text"] as? String {
+                let truncatedOld = oldText.count > 40 ? "\(oldText.prefix(40))..." : oldText
+                let truncatedNew = newText.count > 40 ? "\(newText.prefix(40))..." : newText
+                return (title: "Edit Tweet", content: "✏️ From: \"\(truncatedOld)\"\nTo: \"\(truncatedNew)\"")
+            }
+            let truncatedNew = newText.count > 60 ? "\(newText.prefix(60))..." : newText
+            return (title: "Edit Tweet", content: "✏️ \"\(truncatedNew)\"")
 
         case .likeTweet:
             let id = params["tweet_id"] as? String ?? ""
