@@ -21,27 +21,54 @@ struct VoiceAssistantView: View {
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             VStack {
                 conversationList
             }
             .toolbar {
                   ToolbarItem(placement: .principal) {
-                      HStack(spacing: 8) {
-                          Image(.grok)
-                              .resizable()
-                              .frame(width: 40, height: 40)
+                      VStack {
+                          Text("Voice Service")
+                              .font(.subheadline)
+                              .foregroundStyle(Color(.label).opacity(0.6))
+                              .padding(.top, 5)
 
-                          if viewModel.voiceSessionState.isConnected {
-                              Circle()
-                                  .fill(Color.green)
-                                  .frame(width: 8, height: 8)
-                          } else if viewModel.voiceSessionState.isConnecting {
-                              ProgressView()
-                                  .scaleEffect(0.7)
+                          HStack(spacing: 8) {
+                              Menu {
+                                  Picker("", selection: $viewModel.selectedServiceType) {
+                                      Text(VoiceServiceType.openai.displayName).tag(VoiceServiceType.openai)
+                                      Text(VoiceServiceType.xai.displayName).tag(VoiceServiceType.xai)
+                                  }
+                              } label: {
+                                  HStack(spacing: 4) {
+                                      Image(ImageResource(name: viewModel.selectedServiceType.iconName, bundle: .main))
+                                          .resizable()
+                                          .frame(width: 25, height: 25)
+                                      Text(viewModel.selectedServiceType.displayName)
+                                          .padding(.trailing, 4)
+
+                                      Group {
+                                          if viewModel.voiceSessionState.isConnected {
+                                              Circle()
+                                                  .fill(Color.green)
+                                          } else if viewModel.voiceSessionState.isConnecting {
+                                              ProgressView()
+                                                  .scaleEffect(0.7)
+                                          } else {
+                                              Image(systemName: "chevron.down")
+                                                  .font(.caption)
+                                          }
+                                      }
+                                      .frame(width: 8, height: 8)
+
+                                  }
+                                  .frame(minWidth: 130) // To get around iOS image cropping glitch
+                                  .bold()
+                              }
                           }
                       }
-                      .foregroundStyle(.primary)
                   }
               }
             .toolbar {

@@ -23,9 +23,9 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .xai:
-            return "circle.slash" // Uses existing grok image asset
+            return "Grok" // Uses existing grok image asset
         case .openai:
-            return "brain.head.profile" // SF Symbol for OpenAI
+            return "OpenAI" // SF Symbol for OpenAI
         }
     }
 
