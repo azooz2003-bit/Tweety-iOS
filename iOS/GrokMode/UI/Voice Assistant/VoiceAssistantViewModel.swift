@@ -280,7 +280,6 @@ class VoiceAssistantViewModel: NSObject {
         case .userSpeechStopped:
             // User stopped speaking (server-side VAD)
             voiceSessionState = .connected
-            try? voiceService?.commitAudioBuffer()
 
         case .assistantSpeaking(let itemId):
             voiceSessionState = .grokSpeaking(itemId: itemId)

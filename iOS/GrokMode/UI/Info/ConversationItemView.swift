@@ -203,7 +203,10 @@ struct ToolCallIndicator: View {
         Group {
             switch status {
             case .pending:
-                ProgressView()
+                Image(systemName: "clock.fill")
+                    .resizable()
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(.blue)
                     .scaleEffect(0.7)
             case .approved:
                 Image(systemName: "checkmark.circle.fill")
@@ -273,7 +276,7 @@ struct SystemMessageBubble: View {
 
         ConversationItemView(item: ConversationItem(
             timestamp: Date(),
-            type: .toolCall(name: "search_recent_tweets", status: .executed(success: true))
+            type: .toolCall(name: "search_recent_tweets", status: .pending)
         ))
 
         ConversationItemView(item: ConversationItem(
