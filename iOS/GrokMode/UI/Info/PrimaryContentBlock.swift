@@ -142,9 +142,19 @@ struct PrimaryContentBlock: View {
         }
     }
 
+    // Convert profile image URL to higher quality version
+    private func highQualityProfileImageUrl(_ urlString: String?) -> URL? {
+        guard let urlString = urlString else { return nil }
+
+        // Replace _normal (48x48) with _400x400 for higher quality
+        // X API supports: _mini (24x24), _normal (48x48), _bigger (73x73), _400x400 (400x400)
+        let highQualityUrl = urlString.replacingOccurrences(of: "_normal", with: "_400x400")
+        return URL(string: highQualityUrl)
+    }
+
     @ViewBuilder
     private func imageView() -> some View {
-        if let urlString = profileImageUrl, let url = URL(string: urlString) {
+        if let url = highQualityProfileImageUrl(profileImageUrl) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .empty:
