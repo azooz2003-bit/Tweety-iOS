@@ -20,7 +20,7 @@ struct GrokPrimaryContentBlock: View {
     let displayName: String
     let username: String
     let text: String
-    let mediaUrls: [String]?
+    let media: [XMedia]?
     let metrics: TweetMetrics?  // Engagement metrics
     let tweetUrl: String?  // Deep link URL
 
@@ -54,8 +54,9 @@ struct GrokPrimaryContentBlock: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // Image Grid (if media exists)
-            if let mediaUrls = mediaUrls, !mediaUrls.isEmpty {
-                mediaGrid(urls: mediaUrls)
+            if let media = media, !media.isEmpty {
+                mediaGrid(mediaItems: media)
+                    .frame(maxWidth: .infinity)
             }
 
             bottomInfo()
@@ -179,75 +180,292 @@ struct GrokPrimaryContentBlock: View {
     }
 
     @ViewBuilder
-    private func mediaGrid(urls: [String]) -> some View {
-        let columns = urls.count == 1 ? 1 : 2
-        let gridItems = Array(repeating: GridItem(.flexible(), spacing: 12), count: columns)
+    private func mediaGrid(mediaItems: [XMedia]) -> some View {
+        let columns = mediaItems.count == 1 ? 1 : 2
+        let gridItems = Array(repeating: GridItem(.flexible(minimum: 100, maximum: 400), spacing: 12), count: columns)
+        let spacing: CGFloat = 8
 
-        LazyVGrid(columns: gridItems, spacing: 8) {
-            ForEach(Array(urls.prefix(4).enumerated()), id: \.offset) { index, urlString in
-                if let url = URL(string: urlString) {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                    } placeholder: {
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .foregroundColor(.gray)
-                            .frame(height: 150)
+        LazyVGrid(columns: gridItems, spacing: spacing) {
+            ForEach(Array(mediaItems.prefix(4).enumerated()), id: \.offset) { index, media in
+                let urlString = media.url
+
+                if let urlString, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            mediaPlaceholderBackground()
+                                .overlay {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                        case .success(let image):
+                            image
+                                .resizable()
+                        case .failure(let error):
+                            mediaPlaceholderBackground()
+                                .overlay {
+                                    VStack {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .resizable()
+                                            .frame(width: 30, height: 30)
+                                        Text(error.localizedDescription)
+                                            .multilineTextAlignment(.center)
+                                            .font(.caption2)
+                                            .lineLimit(2)
+                                            .padding(.horizontal, 8)
+                                    }
+                                    .foregroundStyle(.white.opacity(0.6))
+                                }
+                        @unknown default:
+                            fatalError()
+                        }
                     }
-                    .aspectRatio(contentMode: .fill)
-                    .clipped()
-                    .background(Color.gray.opacity(0.2))
+                    .aspectRatio(aspectRatio(forMedia: media), contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    mediaPlaceholderBackground()
+                        .overlay {
+                            Image("exclamationmark.triangle.fill")
+                                .resizable()
+                                .frame(width: 30, height: 30)
+                        }
                 }
             }
         }
     }
+
+    @ViewBuilder
+    private func mediaPlaceholderBackground() -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .foregroundStyle(.gray.opacity(0.4))
+    }
+
+    private func aspectRatio(forMedia media: XMedia) -> CGFloat {
+        guard let width = media.width, let height = media.height else {
+            return 1
+        }
+
+        return CGFloat(width) / CGFloat(height)
+    }
 }
 
-#Preview {
+#Preview("Default States") {
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView{
             VStack(spacing: 24){
                 Spacer()
-                
+
                 GrokPrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
-                    mediaUrls: nil,
+                    media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
                 )
-                
-                
+
+
                 GrokPrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
-                    mediaUrls: nil,
+                    media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
                 )
-                
-                
-                
-                
+
+
+
+
                 GrokPrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation with Grok about the future of AI. Just had a great conversation with Grok about the future of AI",
-                    mediaUrls: nil,
+                    media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
                 )
-                
-                
+
+
                 Spacer()
             }}
+    }
+}
+
+#Preview("Media Grid - Loading State") {
+    ZStack {
+        Color(.systemBackground).ignoresSafeArea()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Simulates loading state with slow/non-existent images
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,
+                    displayName: "Tech News",
+                    username: "technews",
+                    text: "Breaking: New images from the latest tech conference!",
+                    media: [
+                        XMedia(
+                            media_key: "1",
+                            type: "photo",
+                            url: "https://httpstat.us/200?sleep=5000", // Slow loading URL
+                            preview_image_url: nil,
+                            width: 1200,
+                            height: 800
+                        ),
+                        XMedia(
+                            media_key: "2",
+                            type: "photo",
+                            url: "https://httpstat.us/200?sleep=5000",
+                            preview_image_url: nil,
+                            width: 1080,
+                            height: 1080
+                        ),
+                        XMedia(
+                            media_key: "3",
+                            type: "photo",
+                            url: "https://httpstat.us/200?sleep=5000",
+                            preview_image_url: nil,
+                            width: 1920,
+                            height: 1080
+                        )
+                    ],
+                    metrics: TweetMetrics(likes: 5400, retweets: 1200, views: 45000),
+                    tweetUrl: "https://twitter.com/technews/status/1234567891"
+                )
+            }
+            .padding(.vertical)
+        }
+    }
+}
+
+#Preview("Media Grid - Failure State") {
+    ZStack {
+        Color(.systemBackground).ignoresSafeArea()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Uses invalid URLs to trigger failure state
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,
+                    displayName: "Photography",
+                    username: "photoexample",
+                    text: "Check out these amazing shots! (Note: Images failed to load)",
+                    media: [
+                        XMedia(
+                            media_key: "1",
+                            type: "photo",
+                            url: "https://invalid-url-that-will-fail.example/image1.jpg",
+                            preview_image_url: nil,
+                            width: 1200,
+                            height: 800
+                        ),
+                        XMedia(
+                            media_key: "2",
+                            type: "photo",
+                            url: "https://invalid-url-that-will-fail.example/image2.jpg",
+                            preview_image_url: nil,
+                            width: 1080,
+                            height: 1080
+                        ),
+                        XMedia(
+                            media_key: "3",
+                            type: "photo",
+                            url: "https://invalid-url-that-will-fail.example/image3.jpg",
+                            preview_image_url: nil,
+                            width: 800,
+                            height: 1200
+                        ),
+                        XMedia(
+                            media_key: "4",
+                            type: "photo",
+                            url: "https://invalid-url-that-will-fail.example/image4.jpg",
+                            preview_image_url: nil,
+                            width: 1920,
+                            height: 1080
+                        )
+                    ],
+                    metrics: TweetMetrics(likes: 8900, retweets: 2100, views: 67000),
+                    tweetUrl: "https://twitter.com/photoexample/status/1234567892"
+                )
+
+                // Single image failure
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,
+                    displayName: "Artist",
+                    username: "digitalartist",
+                    text: "My latest work! (Failed to load)",
+                    media: [
+                        XMedia(
+                            media_key: "1",
+                            type: "photo",
+                            url: "https://invalid-url.example/art.jpg",
+                            preview_image_url: nil,
+                            width: 1080,
+                            height: 1350
+                        )
+                    ],
+                    metrics: TweetMetrics(likes: 3200, retweets: 450, views: 28000),
+                    tweetUrl: "https://twitter.com/digitalartist/status/1234567893"
+                )
+            }
+            .padding(.vertical)
+        }
+    }
+}
+
+#Preview("Media Grid - Success State") {
+    ZStack {
+        Color(.systemBackground).ignoresSafeArea()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Uses actual working image URLs
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,
+                    displayName: "Sample User",
+                    username: "sampleuser",
+                    text: "Beautiful landscapes from today's hike!",
+                    media: [
+                        XMedia(
+                            media_key: "1",
+                            type: "photo",
+                            url: "https://picsum.photos/1200/800",
+                            preview_image_url: nil,
+                            width: 1200,
+                            height: 800
+                        ),
+                        XMedia(
+                            media_key: "2",
+                            type: "photo",
+                            url: "https://picsum.photos/1080/1080",
+                            preview_image_url: nil,
+                            width: 1080,
+                            height: 1080
+                        ),
+                        XMedia(
+                            media_key: "3",
+                            type: "photo",
+                            url: "https://picsum.photos/1920/1080",
+                            preview_image_url: nil,
+                            width: 1920,
+                            height: 1080
+                        ),
+                        XMedia(
+                            media_key: "4",
+                            type: "photo",
+                            url: "https://picsum.photos/800/1200",
+                            preview_image_url: nil,
+                            width: 800,
+                            height: 1200
+                        )
+                    ],
+                    metrics: TweetMetrics(likes: 15600, retweets: 4200, views: 125000),
+                    tweetUrl: "https://twitter.com/sampleuser/status/1234567894"
+                )
+            }
+            .padding(.vertical)
+        }
     }
 }

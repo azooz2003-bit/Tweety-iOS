@@ -20,8 +20,8 @@ struct ConversationItemView: View {
             case .assistantSpeech(let text):
                 AssistantSpeechBubble(text: text, timestamp: item.timestamp)
 
-            case .tweet(let tweet, let author, let mediaUrls):
-                TweetConversationCard(tweet: tweet, author: author, mediaUrls: mediaUrls)
+            case .tweet(let tweet, let author, let media):
+                TweetConversationCard(tweet: tweet, author: author, media: media)
 
             case .toolCall(let name, let status):
                 ToolCallIndicator(toolName: name, status: status, timestamp: item.timestamp)
@@ -103,7 +103,7 @@ struct AssistantSpeechBubble: View {
 struct TweetConversationCard: View {
     let tweet: XTweet
     let author: XUser?
-    let mediaUrls: [String]
+    let media: [XMedia]
 
     var body: some View {
         GrokPrimaryContentBlock(
@@ -111,7 +111,7 @@ struct TweetConversationCard: View {
             displayName: author?.name ?? "Unknown",
             username: author?.username ?? "unknown",
             text: tweet.text,
-            mediaUrls: mediaUrls.isEmpty ? nil : mediaUrls,
+            media: media.isEmpty ? nil : media,
             metrics: tweetMetrics,
             tweetUrl: tweetUrl
         )
@@ -126,7 +126,7 @@ struct TweetConversationCard: View {
         AppLogger.ui.debug("Tweet Text: \(String(tweet.text.prefix(50)))...")
         AppLogger.ui.debug("Author: \(author?.username ?? "nil")")
         AppLogger.ui.debug("Profile Image URL: \(author?.profile_image_url ?? "NIL")")
-        AppLogger.ui.debug("Media URLs: \(mediaUrls.count)")
+        AppLogger.ui.debug("Media URLs: \(media.count)")
         AppLogger.ui.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
         #endif
 
@@ -296,7 +296,7 @@ struct SystemMessageBubble: View {
                     
                 ),
                 author: XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil),
-                mediaUrls: []
+                media: []
             )
         ))
     }

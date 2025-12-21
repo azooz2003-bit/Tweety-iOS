@@ -10,7 +10,7 @@ import Foundation
 enum ConversationItemType {
     case userSpeech(transcript: String)
     case assistantSpeech(text: String)
-    case tweet(XTweet, author: XUser?, mediaUrls: [String])
+    case tweet(XTweet, author: XUser?, media: [XMedia])
     case toolCall(name: String, status: ToolCallStatus)
     case systemMessage(String)
 }

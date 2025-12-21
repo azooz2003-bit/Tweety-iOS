@@ -539,10 +539,10 @@ class VoiceAssistantViewModel: NSObject {
 
         tweets.forEach { tweet in
             let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-            let mediaUrls = tweet.attachments?.media_keys?.compactMap { key in
-                tweetResponse.includes?.media?.first { $0.media_key == key }?.displayUrl
+            let media = tweet.attachments?.media_keys?.compactMap { key in
+                tweetResponse.includes?.media?.first { $0.media_key == key }
             } ?? []
-            addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
+            addConversationItem(.tweet(tweet, author: author, media: media))
         }
     }
 
