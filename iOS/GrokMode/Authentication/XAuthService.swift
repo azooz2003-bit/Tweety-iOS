@@ -172,6 +172,7 @@ public actor XAuthService {
 
                 self.authSession = session
                 session.presentationContextProvider = self.presentationProvider
+                session.prefersEphemeralWebBrowserSession = true
                 session.start()
             }
         }

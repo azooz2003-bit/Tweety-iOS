@@ -24,7 +24,6 @@ enum SubscriptionTier: String, CaseIterable {
     }
 }
 
-@MainActor
 @Observable
 class StoreManager {
     private(set) var products: [Product] = []
