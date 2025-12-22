@@ -103,7 +103,7 @@ class XAuthService(context: Context) {
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", "$callbackScheme://")
-            .appendQueryParameter("scope", "tweet.read tweet.write tweet.moderate.write users.read follows.read follows.write offline.access")
+            .appendQueryParameter("scope", "tweet.read tweet.write tweet.moderate.write users.read follows.read follows.write space.read mute.read mute.write like.read like.write list.read list.write block.read block.write bookmark.read bookmark.write media.write dm.read dm.write offline.access")
             .appendQueryParameter("state", state)
             .appendQueryParameter("code_challenge", challenge)
             .appendQueryParameter("code_challenge_method", "S256")
@@ -182,7 +182,7 @@ class XAuthService(context: Context) {
     private suspend fun fetchCurrentUser(token: String) = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("https://api.twitter.com/2/users/me")
+                .url("https://api.x.com/2/users/me")
                 .addHeader("Authorization", "Bearer $token")
                 .build()
 

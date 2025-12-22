@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -21,14 +24,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.allensu.grokmode.auth.XAuthService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceAssistantScreen(
+    authService: XAuthService,
     onNavigateToSettings: () -> Unit = {},
     onLogout: () -> Unit = {},
     viewModel: VoiceAssistantViewModel = viewModel(
-        factory = VoiceAssistantViewModel.Factory(LocalContext.current)
+        factory = VoiceAssistantViewModel.Factory(LocalContext.current, authService)
     )
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -126,18 +131,103 @@ fun VoiceAssistantScreen(
         },
         containerColor = Color.White
     ) { paddingValues ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(vertical = 16.dp)
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                items(uiState.conversationItems, key = { it.id }) { item ->
+                    ConversationBubble(
+                        message = item.message,
+                        isToolCall = item.isToolCall
+                    )
+                }
+            }
+
+            // Tool confirmation card
+            uiState.pendingToolCall?.let { pending ->
+                ToolConfirmationCard(
+                    title = pending.previewTitle,
+                    content = pending.previewContent,
+                    onConfirm = { viewModel.confirmToolCall(pending.id) },
+                    onCancel = { viewModel.rejectToolCall(pending.id) },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 100.dp)
+                        .padding(horizontal = 16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolConfirmationCard(
+    title: String,
+    content: String,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            items(uiState.conversationItems, key = { it.id }) { item ->
-                ConversationBubble(message = item.message)
+            Text(
+                text = "Confirm Action",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = content,
+                fontSize = 14.sp,
+                color = Color.DarkGray
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.Red
+                    )
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1DA1F2)
+                    )
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Confirm")
+                }
             }
         }
     }

@@ -75,19 +75,32 @@ class AudioManager(private val context: Context) {
 
             recordingJob = scope.launch(Dispatchers.IO) {
                 val buffer = ByteArray(bufferSize)
+                var chunkCount = 0
+                var silentChunks = 0
+                var loudChunks = 0
+
+                Log.i(TAG, "🎙️ Recording loop STARTED - buffer size: $bufferSize")
 
                 while (isActive && isRecording.get()) {
                     val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: -1
 
                     if (bytesRead > 0) {
                         val audioData = buffer.copyOf(bytesRead)
+                        chunkCount++
 
                         // Calculate audio level for waveform
                         val level = calculateAudioLevel(audioData)
 
-                        // Only send if there's actual audio (not just silence)
-                        if (level > 0.01f) {
-                            Log.d(TAG, "Audio captured: $bytesRead bytes, level: $level")
+                        if (level > 0.02f) {
+                            loudChunks++
+                            Log.d(TAG, "🔊 Loud audio: level=${"%.3f".format(level)} ($bytesRead bytes)")
+                        } else {
+                            silentChunks++
+                        }
+
+                        // Log stats every 50 chunks (~2 seconds)
+                        if (chunkCount % 50 == 0) {
+                            Log.i(TAG, "📊 Audio stats: $chunkCount chunks, $loudChunks loud, $silentChunks silent")
                         }
 
                         onAudioData?.invoke(audioData)
@@ -95,8 +108,12 @@ class AudioManager(private val context: Context) {
                         withContext(Dispatchers.Main) {
                             onAudioLevel?.invoke(level)
                         }
+                    } else {
+                        Log.w(TAG, "⚠️ AudioRecord read failed: $bytesRead")
                     }
                 }
+
+                Log.i(TAG, "🎙️ Recording loop ENDED - total: $chunkCount chunks")
             }
 
             Log.d(TAG, "Recording started")
@@ -155,11 +172,18 @@ class AudioManager(private val context: Context) {
 
     fun playAudio(data: ByteArray) {
         if (audioTrack?.state != AudioTrack.STATE_INITIALIZED) {
+            Log.d(TAG, "🔊 Initializing playback for audio")
             initPlayback()
         }
 
         try {
-            audioTrack?.write(data, 0, data.size)
+            // Make sure track is playing
+            if (audioTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                audioTrack?.play()
+                Log.d(TAG, "🔊 Started audio playback")
+            }
+            val written = audioTrack?.write(data, 0, data.size) ?: 0
+            Log.d(TAG, "🔊 Wrote $written bytes to AudioTrack (input: ${data.size})")
         } catch (e: Exception) {
             Log.e(TAG, "Error playing audio", e)
         }

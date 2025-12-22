@@ -96,17 +96,21 @@ private fun WaveformBars(
 @Composable
 fun ConversationBubble(
     message: String,
+    isToolCall: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val backgroundColor = if (isToolCall) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
+    val textColor = if (isToolCall) Color(0xFF1976D2) else Color(0xFF666666)
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF5F5F5))
+            .background(backgroundColor)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         androidx.compose.material3.Text(
             text = message,
-            color = Color(0xFF666666),
+            color = textColor,
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
         )
     }

@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
                 if (authState.isAuthenticated) {
                     VoiceAssistantScreen(
+                        authService = authViewModel.authService,
                         onLogout = { authViewModel.logout() }
                     )
                 } else {

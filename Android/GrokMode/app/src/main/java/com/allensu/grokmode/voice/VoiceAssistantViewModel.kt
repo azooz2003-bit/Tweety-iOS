@@ -1,9 +1,14 @@
 package com.allensu.grokmode.voice
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.allensu.grokmode.auth.XAuthService
+import com.allensu.grokmode.xapi.PreviewBehavior
+import com.allensu.grokmode.xapi.XTool
+import com.allensu.grokmode.xapi.XToolOrchestrator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,12 +16,28 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.UUID
+
+private const val TAG = "VoiceAssistantVM"
+
+/**
+ * Represents a pending tool call that needs confirmation.
+ */
+data class PendingToolCall(
+    val id: String,
+    val tool: XTool,
+    val arguments: Map<String, Any>,
+    val previewTitle: String,
+    val previewContent: String
+)
 
 data class ConversationItem(
     val id: String = UUID.randomUUID().toString(),
     val message: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isToolCall: Boolean = false,
+    val toolName: String? = null
 )
 
 data class VoiceUiState(
@@ -25,13 +46,24 @@ data class VoiceUiState(
     val conversationItems: List<ConversationItem> = emptyList(),
     val audioLevel: Float = 0f,
     val sessionDuration: Long = 0L,
-    val hasMicPermission: Boolean = false
+    val hasMicPermission: Boolean = false,
+    val pendingToolCall: PendingToolCall? = null  // For confirmation UI
 )
 
-class VoiceAssistantViewModel(context: Context) : ViewModel() {
+class VoiceAssistantViewModel(
+    context: Context,
+    private val authService: XAuthService
+) : ViewModel() {
 
     private val voiceService = XAIVoiceService()
     private val audioManager = AudioManager(context.applicationContext)
+    private val toolOrchestrator = XToolOrchestrator(authService)
+
+    // Queue of pending tool calls awaiting confirmation
+    private val pendingToolCallQueue = mutableListOf<PendingToolCall>()
+
+    // Authenticated user ID for tool calls
+    private var authenticatedUserId: String? = null
 
     private val _uiState = MutableStateFlow(VoiceUiState())
     val uiState: StateFlow<VoiceUiState> = _uiState.asStateFlow()
@@ -63,8 +95,12 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
             )
             addSystemMessage("Connected to xAI Voice")
 
-            // Configure session after connection
-            voiceService.configureSession()
+            // Fetch authenticated user ID and configure session with tools
+            viewModelScope.launch {
+                fetchAuthenticatedUserId()
+                voiceService.authenticatedUserId = authenticatedUserId
+                voiceService.configureSession(includeTools = true)
+            }
         }
 
         voiceService.onEvent = { event ->
@@ -79,10 +115,14 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
         }
 
         voiceService.onDisconnected = { error ->
+            Log.w(TAG, "🔴 onDisconnected callback - error: ${error?.message}")
+            Log.w(TAG, "Current state: ${_uiState.value.sessionState}")
             if (_uiState.value.sessionState !is VoiceSessionState.Disconnected) {
                 stopSession()
                 if (error != null) {
                     addSystemMessage("Disconnected: ${error.message}")
+                } else {
+                    addSystemMessage("Disconnected (no error)")
                 }
             }
         }
@@ -140,12 +180,19 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
             }
             is VoiceEvent.AudioDelta -> {
                 // Don't play if user is speaking
-                if (!_uiState.value.sessionState.isListening) {
+                val isListening = _uiState.value.sessionState.isListening
+                Log.d(TAG, "🔊 AudioDelta received: ${event.audioData.size} bytes, isListening=$isListening")
+                if (!isListening) {
                     audioManager.playAudio(event.audioData)
                     _uiState.value = _uiState.value.copy(
                         sessionState = VoiceSessionState.Speaking()
                     )
+                } else {
+                    Log.w(TAG, "⚠️ Skipping playback - user is speaking")
                 }
+            }
+            is VoiceEvent.ToolCall -> {
+                handleToolCall(event.toolCall)
             }
             is VoiceEvent.Error -> {
                 _uiState.value = _uiState.value.copy(
@@ -159,8 +206,261 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
         }
     }
 
+    /**
+     * Fetch the authenticated user's ID for tool calls.
+     */
+    private suspend fun fetchAuthenticatedUserId() {
+        try {
+            val result = toolOrchestrator.executeTool(
+                XTool.GET_AUTHENTICATED_USER,
+                emptyMap()
+            )
+            if (result.success && result.response != null) {
+                val json = JSONObject(result.response)
+                val data = json.optJSONObject("data")
+                authenticatedUserId = data?.optString("id")
+                Log.i(TAG, "Authenticated user ID: $authenticatedUserId")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch authenticated user", e)
+        }
+    }
+
+    /**
+     * Handle a tool call from the voice assistant.
+     */
+    private fun handleToolCall(toolCall: VoiceToolCall) {
+        val tool = XTool.fromName(toolCall.name)
+        if (tool == null) {
+            Log.w(TAG, "Unknown tool: ${toolCall.name}")
+            // Send error back to voice service
+            voiceService.sendToolOutput(
+                toolCall.id,
+                """{"error": "Unknown tool: ${toolCall.name}"}"""
+            )
+            voiceService.createResponse()
+            return
+        }
+
+        Log.i(TAG, "🔧 Handling tool call: ${tool.displayName}")
+        addSystemMessage("Tool: ${tool.displayName}", isToolCall = true, toolName = tool.toolName)
+
+        // Parse arguments
+        val arguments = try {
+            parseJsonToMap(toolCall.arguments)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse tool arguments", e)
+            voiceService.sendToolOutput(
+                toolCall.id,
+                """{"error": "Invalid arguments: ${e.message}"}"""
+            )
+            voiceService.createResponse()
+            return
+        }
+
+        // Handle voice confirmation tools specially
+        when (tool) {
+            XTool.CONFIRM_ACTION -> {
+                val pendingId = arguments["tool_call_id"] as? String
+                if (pendingId != null) {
+                    confirmToolCall(pendingId)
+                }
+                voiceService.sendToolOutput(toolCall.id, """{"confirmed": true}""")
+                voiceService.createResponse()
+                return
+            }
+            XTool.CANCEL_ACTION -> {
+                val pendingId = arguments["tool_call_id"] as? String
+                if (pendingId != null) {
+                    rejectToolCall(pendingId)
+                }
+                voiceService.sendToolOutput(toolCall.id, """{"cancelled": true}""")
+                voiceService.createResponse()
+                return
+            }
+            else -> {}
+        }
+
+        // Check if tool requires confirmation
+        if (tool.previewBehavior == PreviewBehavior.REQUIRES_CONFIRMATION) {
+            // Queue for confirmation
+            val pending = PendingToolCall(
+                id = toolCall.id,
+                tool = tool,
+                arguments = arguments,
+                previewTitle = tool.displayName,
+                previewContent = generatePreviewContent(tool, arguments)
+            )
+            pendingToolCallQueue.add(pending)
+
+            // Show first pending in UI
+            if (_uiState.value.pendingToolCall == null) {
+                _uiState.value = _uiState.value.copy(pendingToolCall = pending)
+            }
+
+            addSystemMessage("Waiting for confirmation: ${tool.displayName}")
+
+            // Tell assistant to ask for confirmation
+            voiceService.sendToolOutput(
+                toolCall.id,
+                """{"status": "pending_confirmation", "message": "Waiting for user confirmation to ${tool.description.lowercase()}. Ask the user to confirm or cancel."}"""
+            )
+            voiceService.createResponse()
+        } else {
+            // Safe tool - execute immediately
+            executeTool(toolCall.id, tool, arguments)
+        }
+    }
+
+    /**
+     * Execute a tool and send the result back to the voice service.
+     */
+    private fun executeTool(callId: String, tool: XTool, arguments: Map<String, Any>) {
+        viewModelScope.launch {
+            Log.i(TAG, "⚡ Executing tool: ${tool.toolName}")
+            Log.i(TAG, "⚡ Arguments: $arguments")
+            addSystemMessage("Executing: ${tool.displayName}")
+
+            val result = toolOrchestrator.executeTool(tool, arguments, callId)
+
+            Log.i(TAG, "Tool result: success=${result.success}, status=${result.statusCode}")
+
+            // Send result back to voice service
+            voiceService.sendToolOutput(callId, result.getOutputForVoice())
+
+            // Request voice response
+            voiceService.createResponse()
+
+            if (result.success) {
+                addSystemMessage("✓ ${tool.displayName} completed")
+            } else {
+                addSystemMessage("✗ ${tool.displayName} failed: ${result.error?.message}")
+            }
+        }
+    }
+
+    /**
+     * Confirm a pending tool call (from UI button or voice).
+     */
+    fun confirmToolCall(callId: String) {
+        val pending = pendingToolCallQueue.find { it.id == callId }
+        if (pending != null) {
+            pendingToolCallQueue.remove(pending)
+            updatePendingToolCallUI()
+            executeTool(pending.id, pending.tool, pending.arguments)
+        }
+    }
+
+    /**
+     * Reject a pending tool call (from UI button or voice).
+     */
+    fun rejectToolCall(callId: String) {
+        val pending = pendingToolCallQueue.find { it.id == callId }
+        if (pending != null) {
+            pendingToolCallQueue.remove(pending)
+            updatePendingToolCallUI()
+
+            addSystemMessage("Cancelled: ${pending.tool.displayName}")
+
+            // Send cancellation to voice service
+            voiceService.sendToolOutput(
+                callId,
+                """{"status": "cancelled", "message": "User cancelled the action"}"""
+            )
+            voiceService.createResponse()
+        }
+    }
+
+    private fun updatePendingToolCallUI() {
+        _uiState.value = _uiState.value.copy(
+            pendingToolCall = pendingToolCallQueue.firstOrNull()
+        )
+    }
+
+    /**
+     * Generate preview content for a tool call confirmation.
+     */
+    private fun generatePreviewContent(tool: XTool, arguments: Map<String, Any>): String {
+        return when (tool) {
+            XTool.CREATE_TWEET -> {
+                val text = arguments["text"] as? String ?: ""
+                "\"$text\""
+            }
+            XTool.REPLY_TO_TWEET -> {
+                val text = arguments["text"] as? String ?: ""
+                "Reply: \"$text\""
+            }
+            XTool.QUOTE_TWEET -> {
+                val text = arguments["text"] as? String ?: ""
+                "Quote: \"$text\""
+            }
+            XTool.LIKE_TWEET, XTool.UNLIKE_TWEET -> {
+                val tweetId = arguments["tweet_id"] as? String ?: ""
+                "Tweet ID: $tweetId"
+            }
+            XTool.FOLLOW_USER, XTool.UNFOLLOW_USER -> {
+                val userId = arguments["target_user_id"] as? String ?: ""
+                "User ID: $userId"
+            }
+            XTool.SEND_DM_TO_PARTICIPANT -> {
+                val text = arguments["text"] as? String ?: ""
+                "Message: \"$text\""
+            }
+            else -> arguments.toString()
+        }
+    }
+
+    /**
+     * Parse a JSON string to a Map.
+     */
+    private fun parseJsonToMap(jsonString: String): Map<String, Any> {
+        if (jsonString.isBlank()) return emptyMap()
+
+        val json = JSONObject(jsonString)
+        val map = mutableMapOf<String, Any>()
+
+        for (key in json.keys()) {
+            val value = json.get(key)
+            map[key] = when (value) {
+                is JSONObject -> parseJsonObjectToMap(value)
+                is org.json.JSONArray -> parseJsonArray(value)
+                else -> value
+            }
+        }
+
+        return map
+    }
+
+    private fun parseJsonObjectToMap(json: JSONObject): Map<String, Any> {
+        val map = mutableMapOf<String, Any>()
+        for (key in json.keys()) {
+            val value = json.get(key)
+            map[key] = when (value) {
+                is JSONObject -> parseJsonObjectToMap(value)
+                is org.json.JSONArray -> parseJsonArray(value)
+                else -> value
+            }
+        }
+        return map
+    }
+
+    private fun parseJsonArray(array: org.json.JSONArray): List<Any> {
+        val list = mutableListOf<Any>()
+        for (i in 0 until array.length()) {
+            val value = array.get(i)
+            list.add(when (value) {
+                is JSONObject -> parseJsonObjectToMap(value)
+                is org.json.JSONArray -> parseJsonArray(value)
+                else -> value
+            })
+        }
+        return list
+    }
+
     fun startSession() {
+        Log.i(TAG, "🚀 startSession() called")
         if (!_uiState.value.hasMicPermission) {
+            Log.w(TAG, "No mic permission")
             addSystemMessage("Microphone permission required")
             return
         }
@@ -171,6 +471,7 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
             sessionState = VoiceSessionState.Connecting
         )
         addSystemMessage("Connecting to xAI Voice...")
+        Log.i(TAG, "State set to Connecting")
 
         // Start session timer
         sessionStartTime = System.currentTimeMillis()
@@ -197,6 +498,9 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
     }
 
     fun stopSession() {
+        Log.i(TAG, "🛑 stopSession() called")
+        Log.i(TAG, "Audio chunks sent this session: $audioChunksSent")
+
         sessionTimerJob?.cancel()
         sessionTimerJob = null
 
@@ -213,8 +517,16 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
         addSystemMessage("Disconnected")
     }
 
-    private fun addSystemMessage(message: String) {
-        val item = ConversationItem(message = message)
+    private fun addSystemMessage(
+        message: String,
+        isToolCall: Boolean = false,
+        toolName: String? = null
+    ) {
+        val item = ConversationItem(
+            message = message,
+            isToolCall = isToolCall,
+            toolName = toolName
+        )
         _uiState.value = _uiState.value.copy(
             conversationItems = _uiState.value.conversationItems + item
         )
@@ -233,10 +545,13 @@ class VoiceAssistantViewModel(context: Context) : ViewModel() {
         audioManager.release()
     }
 
-    class Factory(private val context: Context) : ViewModelProvider.Factory {
+    class Factory(
+        private val context: Context,
+        private val authService: XAuthService
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return VoiceAssistantViewModel(context) as T
+            return VoiceAssistantViewModel(context, authService) as T
         }
     }
 }

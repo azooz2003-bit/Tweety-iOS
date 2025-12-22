@@ -20,7 +20,8 @@ data class AuthUiState(
 
 class AuthViewModel(context: Context) : ViewModel() {
 
-    private val authService = XAuthService(context.applicationContext)
+    // Exposed for use by VoiceAssistantViewModel
+    val authService = XAuthService(context.applicationContext)
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
