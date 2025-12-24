@@ -12,7 +12,7 @@
 	],
 	"vars": {
 		"TEAM_ID": "KJ7YS82G45",
-		"BUNDLE_ID": "co.azizalbahar.GrokMode123"
+		"BUNDLE_ID": "co.azizalbahar.TweetyXVoiceAssistant"
 	},
 	"observability": {
 		"enabled": true,

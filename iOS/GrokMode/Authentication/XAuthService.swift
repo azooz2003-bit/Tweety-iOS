@@ -9,6 +9,7 @@ import Foundation
 @preconcurrency import AuthenticationServices
 import CommonCrypto
 import Combine
+internal import os
 
 // MARK: - Auth Presentation Provider
 final class AuthPresentationProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
@@ -201,7 +202,6 @@ public actor XAuthService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         let bodyParams: [String: String] = [
             "code": code,
@@ -211,14 +211,53 @@ public actor XAuthService {
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: bodyParams)
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+        var isRetry = false
+        let maxRetries = 1
+        var currentAttempt = 0
+        var data: Data?
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                throw AuthError.loginFailed("Token exchange failed: \(errorMessage)")
+        while currentAttempt <= maxRetries {
+            do {
+                try await request.addAppAttestHeaders(isRetry: isRetry)
+
+                let (responseData, response) = try await URLSession.shared.data(for: request)
+
+                guard let urlResponse = response as? HTTPURLResponse else {
+                    throw AuthError.loginFailed("Invalid response type")
+                }
+
+                AppLogger.auth.debug("Token exchange response status: \(urlResponse.statusCode)")
+                AppLogger.logSensitive(AppLogger.auth, level: .debug, "Response body: \(String(data: responseData, encoding: .utf8) ?? "Unable to decode")")
+
+                if urlResponse.statusCode == 403 && currentAttempt < maxRetries {
+                    AppLogger.auth.warning("Attestation rejected (403), clearing and retrying...")
+                    await URLRequest.handleAttestationExpired()
+                    isRetry = true
+                    currentAttempt += 1
+                    continue
+                }
+
+                guard urlResponse.statusCode == 200 else {
+                    let errorMessage = String(data: responseData, encoding: .utf8) ?? "Unknown error"
+                    throw AuthError.loginFailed("Token exchange failed (Status \(urlResponse.statusCode)): \(errorMessage)")
+                }
+
+                data = responseData
+                break
+            } catch {
+                if currentAttempt < maxRetries {
+                    currentAttempt += 1
+                    continue
+                }
+                throw error
             }
+        }
 
+        guard let data else {
+            throw AuthError.loginFailed("(shouldn't happen) No token data received.")
+        }
+
+        do {
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let accessToken = json["access_token"] as? String else {
                 throw AuthError.loginFailed("Invalid token response")
@@ -333,13 +372,13 @@ public actor XAuthService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         let bodyParams: [String: String] = [
             "refresh_token": refreshToken
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: bodyParams)
+        try await request.addAppAttestHeaders()
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

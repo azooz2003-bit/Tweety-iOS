@@ -8,6 +8,7 @@
 import Foundation
 import DeviceCheck
 import CryptoKit
+import OSLog
 
 enum AppAttestError: Error {
     case notSupported
@@ -36,33 +37,51 @@ actor AppAttestService {
 
     private func attestNewKey() async throws -> String {
         guard service.isSupported else {
+            AppLogger.auth.error("App Attest not supported on this device")
             throw AppAttestError.notSupported
         }
 
         let keyId = try await service.generateKey()
         let challenge = try await fetchChallenge()
-        let attestation = try await service.attestKey(keyId, clientDataHash: challenge)
+        let clientDataHash = Data(SHA256.hash(data: challenge))
+        let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
+
         try await verifyAttestation(keyId: keyId, attestation: attestation, challenge: challenge)
         try await keychain.save(keyId, for: keyIdKey)
 
         return keyId
     }
 
-    func generateAssertion(for request: URLRequest) async throws -> (keyId: String, assertion: Data) {
+    func generateAssertion(for request: URLRequest, isRetry: Bool = false) async throws -> (keyId: String, assertion: Data) {
         guard let keyId = await keychain.getString(for: keyIdKey) else {
             let _ = try await attestNewKey()
-            return try await generateAssertion(for: request)
+            return try await generateAssertion(for: request, isRetry: true)
         }
 
         let clientDataHash = try createClientDataHash(from: request)
-        let assertion = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
 
-        return (keyId, assertion)
+        do {
+            let assertion = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
+            return (keyId, assertion)
+        } catch {
+            AppLogger.auth.error("Assertion generation failed: \(error.localizedDescription)")
+            if !isRetry {
+                await clearAttestation()
+                return try await generateAssertion(for: request, isRetry: true)
+            }
+            throw error
+        }
     }
 
     func clearAttestation() async {
         await keychain.delete(keyIdKey)
     }
+
+    #if DEBUG
+    static func clearAttestationForDebug() async {
+        await shared.clearAttestation()
+    }
+    #endif
 
     // MARK: - Helpers
 
@@ -90,8 +109,15 @@ actor AppAttestService {
         ]
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AppAttestError.verificationFailed
+        }
+
+        if httpResponse.statusCode != 200 {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            AppLogger.auth.error("Attestation verification failed: \(errorMessage)")
             throw AppAttestError.verificationFailed
         }
     }
@@ -116,6 +142,7 @@ actor AppAttestService {
             data.append(body)
         }
 
-        return Data(SHA256.hash(data: data))
+        let hash = Data(SHA256.hash(data: data))
+        return hash
     }
 }

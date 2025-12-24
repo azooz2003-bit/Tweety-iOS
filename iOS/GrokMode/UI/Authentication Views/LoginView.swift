@@ -109,6 +109,19 @@ struct LoginView: View {
         } message: {
             Text(errorMessage)
         }
+        #if DEBUG
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                Button(action: {
+                    Task {
+                        await AppAttestService.clearAttestationForDebug()
+                    }
+                }) {
+                    Image(systemName: "trash")
+                }
+            }
+        }
+        #endif
     }
 }
 

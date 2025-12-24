@@ -30,7 +30,8 @@ async function createClientDataHash(request: Request): Promise<string> {
     data = new Uint8Array([...data, ...pathData]);
 
     if (url.search) {
-        const queryData = encoder.encode(url.search);
+        const query = url.search.substring(1);
+        const queryData = encoder.encode(query);
         data = new Uint8Array([...data, ...queryData]);
     }
 
@@ -44,7 +45,8 @@ async function createClientDataHash(request: Request): Promise<string> {
 
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return btoa(String.fromCharCode(...hashArray));
+    const hashBase64 = btoa(String.fromCharCode(...hashArray));
+    return hashBase64;
 }
 
 export default {
@@ -70,7 +72,15 @@ Promise<Response> {
                     return new Response('Invalid attestation', { status: 403 });
                 }
             } catch (error) {
-                return new Response('Attestation verification failed', { status: 500 });
+                console.error('Attestation verification error:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                return new Response(JSON.stringify({
+                    error: 'Attestation verification failed',
+                    details: errorMessage
+                }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' }
+                });
             }
         }
 

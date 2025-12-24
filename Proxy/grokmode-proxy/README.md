@@ -13,7 +13,7 @@ Cloudflare Workers proxy for securely handling API keys and authentication for t
 ### 1. xAI Voice - Ephemeral Token
 **Path**: `/grok/v1/realtime/client_secrets`
 **Method**: POST
-**Auth**: X-App-Secret header
+**Auth**: App Attest (X-Apple-Attest-Key-Id and X-Apple-Attest-Assertion headers)
 
 Generates an ephemeral token for connecting to xAI's Realtime Voice API.
 
@@ -32,7 +32,7 @@ Generates an ephemeral token for connecting to xAI's Realtime Voice API.
 ### 2. OpenAI Realtime - Ephemeral Token
 **Path**: `/openai/v1/realtime/client_secrets`
 **Method**: POST
-**Auth**: X-App-Secret header
+**Auth**: App Attest (X-Apple-Attest-Key-Id and X-Apple-Attest-Assertion headers)
 
 Generates an ephemeral token for connecting to OpenAI's Realtime API via WebSocket.
 
@@ -64,7 +64,7 @@ Generates an ephemeral token for connecting to OpenAI's Realtime API via WebSock
 ### 3. X OAuth2 - Token Exchange
 **Path**: `/x/oauth2/token`
 **Method**: POST
-**Auth**: X-App-Secret header
+**Auth**: App Attest (X-Apple-Attest-Key-Id and X-Apple-Attest-Assertion headers)
 
 Exchanges an authorization code for access and refresh tokens.
 
@@ -82,7 +82,7 @@ Exchanges an authorization code for access and refresh tokens.
 ### 4. X OAuth2 - Token Refresh
 **Path**: `/x/oauth2/refresh`
 **Method**: POST
-**Auth**: X-App-Secret header
+**Auth**: App Attest (X-Apple-Attest-Key-Id and X-Apple-Attest-Assertion headers)
 
 Refreshes an expired access token.
 
@@ -104,9 +104,6 @@ wrangler secret put X_AI_API_KEY
 # OpenAI API Key
 wrangler secret put OPENAI_API_KEY
 
-# App Secret for client authentication
-wrangler secret put APP_SECRET
-
 # X OAuth2 Credentials
 wrangler secret put X_OAUTH2_CLIENT_ID
 wrangler secret put X_OAUTH2_CLIENT_SECRET
@@ -117,7 +114,6 @@ wrangler secret put X_OAUTH2_CLIENT_SECRET
 1. **xAI API Key**: Get from [x.ai/api](https://x.ai/api)
 2. **OpenAI API Key**: Get from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 3. **X OAuth2**: Register your app at [developer.twitter.com](https://developer.twitter.com/en/portal/dashboard)
-4. **App Secret**: Generate a secure random string for client authentication
 
 ## Deployment
 
@@ -137,14 +133,15 @@ npx wrangler deploy
 # Set all required secrets
 npx wrangler secret put X_AI_API_KEY
 npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put APP_SECRET
 npx wrangler secret put X_OAUTH2_CLIENT_ID
 npx wrangler secret put X_OAUTH2_CLIENT_SECRET
 ```
 
 ## Security
 
-- All endpoints require the `X-App-Secret` header to authenticate requests from the iOS app
+- All protected endpoints require App Attest verification (iOS-only, hardware-backed device attestation)
+- Attestation data stored in Cloudflare KV with 90-day expiration
+- Each request requires a cryptographic assertion proving it comes from an attested app instance
 - API keys are stored as Cloudflare Workers secrets and never exposed to clients
 - Ephemeral tokens have short expiration times (5-60 minutes)
 - OAuth tokens are only used for X API authentication
@@ -179,7 +176,8 @@ Update these URLs to point to your deployed worker.
 
 All endpoints return proper HTTP status codes:
 - `200 OK`: Success
-- `401 Unauthorized`: Invalid or missing X-App-Secret
+- `401 Unauthorized`: Missing App Attest headers
+- `403 Forbidden`: Invalid App Attest assertion
 - `404 Not Found`: Unknown endpoint
 - `500 Internal Server Error`: API errors (details in response body)
 
