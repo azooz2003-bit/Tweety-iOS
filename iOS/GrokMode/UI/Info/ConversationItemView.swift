@@ -20,8 +20,8 @@ struct ConversationItemView: View {
             case .assistantSpeech(let text):
                 AssistantSpeechBubble(text: text, timestamp: item.timestamp)
 
-            case .tweet(let tweet, let author, let media):
-                TweetConversationCard(tweet: tweet, author: author, media: media)
+            case .tweet(let tweet, let author, let media, let retweeter, let retweetId):
+                TweetConversationCard(tweet: tweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId)
 
             case .toolCall(let name, let status):
                 ToolCallIndicator(toolName: name, status: status, timestamp: item.timestamp)
@@ -104,6 +104,8 @@ struct TweetConversationCard: View {
     let tweet: XTweet
     let author: XUser?
     let media: [XMedia]
+    let retweeter: XUser?
+    let retweetId: String?
 
     var body: some View {
         PrimaryContentBlock(
@@ -113,7 +115,8 @@ struct TweetConversationCard: View {
             text: tweet.text,
             media: media.isEmpty ? nil : media,
             metrics: tweetMetrics,
-            tweetUrl: tweetUrl
+            tweetUrl: tweetUrl,
+            retweeterName: retweeter?.name
         )
         .listRowSeparator(.hidden)
         .padding(.vertical, 4)
@@ -154,6 +157,16 @@ struct TweetConversationCard: View {
     }
 
     private var tweetUrl: String? {
+        // For retweets, use retweeter's username and retweet ID
+        if let retweetId = retweetId, let retweeterUsername = retweeter?.username {
+            let url = "https://twitter.com/\(retweeterUsername)/status/\(retweetId)"
+            #if DEBUG
+            AppLogger.ui.debug("✓ Retweet URL: \(url)")
+            #endif
+            return url
+        }
+
+        // For regular tweets, use author's username and tweet ID
         guard let username = author?.username else {
             #if DEBUG
             AppLogger.ui.debug("✗ Cannot create URL - no author username")
@@ -310,10 +323,12 @@ struct SystemMessageBubble: View {
                         impression_count: 10000,
                         bookmark_count: 30
                     ),
-                    
+                    referenced_tweets: nil
                 ),
                 author: XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil),
-                media: []
+                media: [],
+                retweeter: nil,
+                retweetId: nil
             )
         ))
     }

@@ -522,6 +522,7 @@ class VoiceAssistantViewModel: NSObject {
             struct Includes: Codable {
                 let users: [XUser]?
                 let media: [XMedia]?
+                let tweets: [XTweet]?
             }
         }
 
@@ -540,11 +541,25 @@ class VoiceAssistantViewModel: NSObject {
         }
 
         tweets.forEach { tweet in
-            let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-            let media = tweet.attachments?.media_keys?.compactMap { key in
-                tweetResponse.includes?.media?.first { $0.media_key == key }
-            } ?? []
-            addConversationItem(.tweet(tweet, author: author, media: media))
+            // Check if this is a retweet
+            if tweet.isRetweet,
+               let retweetedId = tweet.retweetedTweetId,
+               let originalTweet = tweetResponse.includes?.tweets?.first(where: { $0.id == retweetedId }) {
+                // This is a retweet - show original tweet's content, but use retweet ID for URL
+                let retweeter = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
+                let author = tweetResponse.includes?.users?.first { $0.id == originalTweet.author_id }
+                let media = originalTweet.attachments?.media_keys?.compactMap { key in
+                    tweetResponse.includes?.media?.first { $0.media_key == key }
+                } ?? []
+                addConversationItem(.tweet(originalTweet, author: author, media: media, retweeter: retweeter, retweetId: tweet.id))
+            } else {
+                // Regular tweet or quote tweet
+                let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
+                let media = tweet.attachments?.media_keys?.compactMap { key in
+                    tweetResponse.includes?.media?.first { $0.media_key == key }
+                } ?? []
+                addConversationItem(.tweet(tweet, author: author, media: media, retweeter: nil, retweetId: nil))
+            }
         }
     }
 

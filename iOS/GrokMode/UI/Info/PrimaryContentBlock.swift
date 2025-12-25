@@ -23,9 +23,24 @@ struct PrimaryContentBlock: View {
     let media: [XMedia]?
     let metrics: TweetMetrics?  // Engagement metrics
     let tweetUrl: String?  // Deep link URL
+    let retweeterName: String?  // Name of person who retweeted (if this is a retweet)
 
     var body: some View {
         VStack(alignment: .center, spacing: 12) {
+            // Retweet indicator (if this is a retweet)
+            if let retweeterName = retweeterName {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.2.squarepath")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    Text("\(retweeterName) reposted")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 2)
+            }
+
             // Top: User icon and name centered and stacked
             VStack(spacing: 6) {
                 // Profile image with AsyncImage or fallback to X icon
@@ -273,7 +288,8 @@ struct PrimaryContentBlock: View {
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
-                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
+                    retweeterName: nil
                 )
 
 
@@ -284,7 +300,8 @@ struct PrimaryContentBlock: View {
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
-                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
+                    retweeterName: "John Doe"
                 )
 
 
@@ -297,7 +314,8 @@ struct PrimaryContentBlock: View {
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation about the future of AI. Just had a great conversation about the future of AI",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
-                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
+                    retweeterName: nil
                 )
 
 
@@ -344,7 +362,8 @@ struct PrimaryContentBlock: View {
                         )
                     ],
                     metrics: TweetMetrics(likes: 5400, retweets: 1200, views: 45000),
-                    tweetUrl: "https://twitter.com/technews/status/1234567891"
+                    tweetUrl: "https://twitter.com/technews/status/1234567891",
+                    retweeterName: nil
                 )
             }
             .padding(.vertical)
@@ -398,7 +417,8 @@ struct PrimaryContentBlock: View {
                         )
                     ],
                     metrics: TweetMetrics(likes: 8900, retweets: 2100, views: 67000),
-                    tweetUrl: "https://twitter.com/photoexample/status/1234567892"
+                    tweetUrl: "https://twitter.com/photoexample/status/1234567892",
+                    retweeterName: nil
                 )
 
                 // Single image failure
@@ -418,7 +438,8 @@ struct PrimaryContentBlock: View {
                         )
                     ],
                     metrics: TweetMetrics(likes: 3200, retweets: 450, views: 28000),
-                    tweetUrl: "https://twitter.com/digitalartist/status/1234567893"
+                    tweetUrl: "https://twitter.com/digitalartist/status/1234567893",
+                    retweeterName: nil
                 )
             }
             .padding(.vertical)
@@ -472,7 +493,8 @@ struct PrimaryContentBlock: View {
                         )
                     ],
                     metrics: TweetMetrics(likes: 15600, retweets: 4200, views: 125000),
-                    tweetUrl: "https://twitter.com/sampleuser/status/1234567894"
+                    tweetUrl: "https://twitter.com/sampleuser/status/1234567894",
+                    retweeterName: nil
                 )
             }
             .padding(.vertical)

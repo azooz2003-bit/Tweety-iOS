@@ -12,6 +12,7 @@ struct XTweet: Codable, Identifiable, Sendable {
     let created_at: String?
     let attachments: Attachments?
     let public_metrics: PublicMetrics?
+    let referenced_tweets: [ReferencedTweet]?
 
     struct Attachments: Codable, Sendable {
         let media_keys: [String]?
@@ -24,5 +25,20 @@ struct XTweet: Codable, Identifiable, Sendable {
         let quote_count: Int?
         let impression_count: Int?  // Views
         let bookmark_count: Int?
+    }
+
+    struct ReferencedTweet: Codable, Sendable {
+        let type: String  // "retweeted", "quoted", "replied_to"
+        let id: String
+    }
+
+    // Helper to check if this is a retweet
+    var isRetweet: Bool {
+        referenced_tweets?.contains { $0.type == "retweeted" } ?? false
+    }
+
+    // Get the ID of the retweeted tweet
+    var retweetedTweetId: String? {
+        referenced_tweets?.first { $0.type == "retweeted" }?.id
     }
 }

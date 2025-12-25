@@ -143,7 +143,7 @@ actor XToolOrchestrator {
     /// Enriches parameters with essential tweet-related fields
     private func enrichWithTweetFields(_ params: [String: Any]) -> [String: Any] {
         var enriched = params
-        enriched["expansions"] = enriched["expansions"] ?? "attachments.poll_ids,attachments.media_keys,author_id,referenced_tweets.id"
+        enriched["expansions"] = enriched["expansions"] ?? "attachments.poll_ids,attachments.media_keys,author_id,referenced_tweets.id,referenced_tweets.id.author_id"
         enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at,public_metrics,referenced_tweets,entities,conversation_id,in_reply_to_user_id,edit_controls,note_tweet,reply_settings"
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
         enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url,width,height"
