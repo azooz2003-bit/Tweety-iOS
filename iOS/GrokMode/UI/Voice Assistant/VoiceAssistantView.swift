@@ -9,6 +9,7 @@ import SwiftUI
 import UIKit
 
 struct VoiceAssistantView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
@@ -103,13 +104,18 @@ struct VoiceAssistantView: View {
                 }
             }
             .onChange(of: viewModel.voiceSessionState) { oldState, newState in
-                // Haptic feedback when session connects or disconnects
-                if oldState != newState {
-                    if newState == .connected {
-                        hapticGenerator.impactOccurred()
-                    } else if newState == .disconnected && oldState == .connected {
-                        hapticGenerator.impactOccurred()
-                    }
+                // Haptic feedback only when connection status changes (not during session state transitions)
+                let wasConnected = oldState.isConnected
+                let isNowConnected = newState.isConnected
+
+                if wasConnected != isNowConnected {
+                    hapticGenerator.impactOccurred()
+                }
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                // Track partial usage when app backgrounds to preserve data if app is terminated
+                if newPhase == .background {
+                    viewModel.trackPartialUsageIfNeeded()
                 }
             }
         }
@@ -226,6 +232,12 @@ struct VoiceAssistantView: View {
                     }
                 } label: {
                     Label("Test Refresh Token", systemImage: "arrow.clockwise")
+                }
+
+                NavigationLink {
+                    UsageDashboardView()
+                } label: {
+                    Label("Usage & Costs", systemImage: "chart.bar.fill")
                 }
             }
             #endif

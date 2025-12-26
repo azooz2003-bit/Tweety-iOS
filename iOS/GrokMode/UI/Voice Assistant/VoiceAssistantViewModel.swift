@@ -23,6 +23,7 @@ class VoiceAssistantViewModel: NSObject {
     var sessionElapsedTime: TimeInterval = 0
     private var sessionStartTime: Date?
     private var sessionTimer: Timer?
+    private var trackedMinutes: Int = 0 // Number of complete minutes already tracked
     /// For serializing sessions start and stops
     private var sessionStartStopTask: Task<Void, Never>?
 
@@ -227,9 +228,19 @@ class VoiceAssistantViewModel: NSObject {
             // Start session duration timer
             sessionStartTime = Date()
             sessionElapsedTime = 0
+            trackedMinutes = 0
             sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
                 guard let self = self, let startTime = self.sessionStartTime else { return }
                 self.sessionElapsedTime = Date().timeIntervalSince(startTime)
+
+                // Track usage every complete minute for Grok sessions
+                if self.selectedServiceType == .xai {
+                    let currentMinute = Int(self.sessionElapsedTime / 60)
+                    if currentMinute > self.trackedMinutes {
+                        UsageTracker.shared.trackGrokVoiceMinute()
+                        self.trackedMinutes = currentMinute
+                    }
+                }
             }
 
             guard !Task.isCancelled else { return }
@@ -250,14 +261,28 @@ class VoiceAssistantViewModel: NSObject {
         isSessionActivated = false
         sessionStartStopTask?.cancel()
         sessionStartStopTask = Task { @MainActor in
+            // Track any remaining partial minute for Grok voice sessions
+            trackPartialUsageIfNeeded()
+
             // Stop session duration timer
             sessionTimer?.invalidate()
             sessionTimer = nil
             sessionStartTime = nil
             sessionElapsedTime = 0
+            trackedMinutes = 0
 
             self.disconnect()
             currentAudioLevel = 0.0  // Reset waveform to baseline
+        }
+    }
+
+    /// Track any untracked partial usage for Grok sessions (called when app backgrounds or session stops)
+    func trackPartialUsageIfNeeded() {
+        guard selectedServiceType == .xai, sessionElapsedTime > 0 else { return }
+
+        let remainingSeconds = sessionElapsedTime.truncatingRemainder(dividingBy: 60)
+        if remainingSeconds > 0 {
+            UsageTracker.shared.trackGrokVoicePartialMinute(seconds: remainingSeconds)
         }
     }
 

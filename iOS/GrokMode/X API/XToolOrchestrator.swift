@@ -74,6 +74,9 @@ actor XToolOrchestrator {
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
                 let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name)
+
+                await trackXAPIUsage(for: tool, responseData: data)
+
                 return .success(id: id, toolName: tool.name, response: enrichedResponse, statusCode: httpResponse.statusCode)
             } else if httpResponse.statusCode == 401 {
                 // 401 = unauthorized (permissions issue or other API error)
@@ -795,5 +798,63 @@ actor XToolOrchestrator {
         }
 
         return responseString
+    }
+
+    // MARK: - Usage Tracking
+
+    /// Track X API usage based on tool type and response data
+    @MainActor
+    private func trackXAPIUsage(for tool: XTool, responseData: Data) {
+        // Parse response to count items
+        guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+            return
+        }
+
+        // Categorize tools and track usage
+        switch tool {
+        // Read operations - Posts
+        case .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
+             .getUserLikedTweets, .getUserTweets, .getUserMentions,
+             .getHomeTimeline, .getRepostsOfMe:
+            if let data = json["data"] as? [[String: Any]] {
+                UsageTracker.shared.trackXAPIUsage(operation: .postRead, count: data.count)
+            } else if json["data"] != nil {
+                // Single tweet
+                UsageTracker.shared.trackXAPIUsage(operation: .postRead, count: 1)
+            }
+
+        // Read operations - Users
+        case .getUserFollowers, .getUserFollowing, .getUserByUsername, .getUserById:
+            if let data = json["data"] as? [[String: Any]] {
+                UsageTracker.shared.trackXAPIUsage(operation: .userRead, count: data.count)
+            } else if json["data"] != nil {
+                // Single user
+                UsageTracker.shared.trackXAPIUsage(operation: .userRead, count: 1)
+            }
+
+        // Read operations - DM Events
+        case .getDMEvents, .getConversationDMs, .getDMEventDetails:
+            if let data = json["data"] as? [[String: Any]] {
+                UsageTracker.shared.trackXAPIUsage(operation: .dmEventRead, count: data.count)
+            }
+
+        // Create operations - Content
+        case .createTweet, .replyToTweet, .quoteTweet, .deleteTweet, .createPollTweet, .editTweet:
+            UsageTracker.shared.trackXAPIUsage(operation: .contentCreate, count: 1)
+
+        // Create operations - DM Interactions
+        case .sendDMToParticipant, .sendDMToConversation, .createDMConversation, .deleteDMEvent:
+            UsageTracker.shared.trackXAPIUsage(operation: .dmInteractionCreate, count: 1)
+
+        // Create operations - User Interactions
+        case .likeTweet, .unlikeTweet, .retweet, .unretweet,
+             .followUser, .unfollowUser, .blockUserDMs, .unblockUserDMs,
+             .muteUser, .unmuteUser, .addBookmark, .removeBookmark:
+            UsageTracker.shared.trackXAPIUsage(operation: .userInteractionCreate, count: 1)
+
+        default:
+            // Tools without usage tracking (e.g., getAuthenticatedUser)
+            break
+        }
     }
 }

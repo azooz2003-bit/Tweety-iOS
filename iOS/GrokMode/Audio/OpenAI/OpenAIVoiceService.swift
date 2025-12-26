@@ -591,6 +591,23 @@ class OpenAIVoiceService: VoiceService {
                 AppLogger.logSensitive(AppLogger.voice, level: .debug, "response.done JSON:\n\(AppLogger.prettyJSON(jsonString))")
             }
 
+            // Track OpenAI usage
+            if let usage = message.response?.usage {
+                let audioInputTokens = usage.input_token_details?.audio_tokens ?? 0
+                let audioOutputTokens = usage.output_token_details?.audio_tokens ?? 0
+                let textInputTokens = usage.input_token_details?.text_tokens ?? 0
+                let textOutputTokens = usage.output_token_details?.text_tokens ?? 0
+                let cachedTextInputTokens = usage.input_token_details?.cached_tokens ?? 0
+
+                UsageTracker.shared.trackOpenAIUsage(
+                    audioInputTokens: audioInputTokens,
+                    audioOutputTokens: audioOutputTokens,
+                    textInputTokens: textInputTokens,
+                    textOutputTokens: textOutputTokens,
+                    cachedTextInputTokens: cachedTextInputTokens
+                )
+            }
+
         default:
             break
         }
