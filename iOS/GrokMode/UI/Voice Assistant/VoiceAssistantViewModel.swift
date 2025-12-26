@@ -20,20 +20,12 @@ class VoiceAssistantViewModel: NSObject {
     var selectedServiceType: VoiceServiceType = .openai
 
     // MARK: Session
-    var sessionElapsedTime: TimeInterval = 0
-    private var sessionStartTime: Date?
+    @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
+    @ObservationIgnored var sessionStartTime: Date? // Exposed for timer view to observe
     private var sessionTimer: Timer?
     private var trackedMinutes: Int = 0 // Number of complete minutes already tracked
     /// For serializing sessions start and stops
     private var sessionStartStopTask: Task<Void, Never>?
-
-    var formattedSessionDuration: String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.zeroFormattingBehavior = .pad
-        formatter.unitsStyle = .positional
-        return formatter.string(from: sessionElapsedTime) ?? "0:00"
-    }
 
     var conversationItems: [ConversationItem] = []
 

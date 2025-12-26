@@ -79,10 +79,7 @@ struct VoiceAssistantView: View {
                     ToolbarSpacer(.fixed, placement: .bottomBar)
 
                     ToolbarItem(placement: .bottomBar) {
-                        Text(viewModel.formattedSessionDuration)
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                        SessionTimerView(sessionStartTime: viewModel.sessionStartTime)
                     }
 
                     ToolbarItem(placement:.bottomBar) {
@@ -150,10 +147,12 @@ struct VoiceAssistantView: View {
             } label: {
                 AnimatedWaveformView(animator: animator, barCount: barCountThatFits, barSpacing: barSpacing, barWidth: barWidth, accentColor: .background, isAnimating: isAnimating)
             }
+            .id(barCountThatFits) // Force button to recreate when bar count changes
             .buttonStyle(.glassProminent)
             .tint(Color(.label))
             .frame(width: width)
         }
+        .frame(maxWidth: fillWidth ? .infinity : nil)
         .if(!fillWidth) {
             $0.aspectRatio(contentMode: .fit)
         }
