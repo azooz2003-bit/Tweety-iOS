@@ -65,3 +65,5 @@ fastlane/test_output
 Package.resolved
 
 Secrets.xcconfig
+
+.claude

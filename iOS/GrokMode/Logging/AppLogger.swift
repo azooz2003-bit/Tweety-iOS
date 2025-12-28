@@ -2,7 +2,7 @@
 //  AppLogger.swift
 //  GrokMode
 //
-//  Centralized logging utility for GrokMode
+//  Created by Abdulaziz Albahar on 12/7/25.
 //
 
 import Foundation
