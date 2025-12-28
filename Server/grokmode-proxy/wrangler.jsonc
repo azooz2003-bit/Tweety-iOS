@@ -28,5 +28,13 @@
 			"persist": true,
 			"head_sampling_rate": 1
 		}
-	}
+	},
+	"d1_databases": [
+		{
+			"binding": "tweety_credits",
+			"database_name": "tweety-credits",
+			"database_id": "089569bf-1055-4fb3-ab87-c391354fdf23",
+			"remote": true
+		}
+	]
 }

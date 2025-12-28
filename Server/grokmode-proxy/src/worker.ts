@@ -1,4 +1,7 @@
 import { verifyAttestation, verifyAssertion, generateChallenge } from './appAttest';
+import { syncTransactions } from './credits/handlers/syncTransactions';
+import { trackUsage } from './credits/handlers/trackUsage';
+import { getBalance } from './credits/handlers/getBalance';
 
 export interface Env {
     X_AI_API_KEY: string;
@@ -8,6 +11,7 @@ export interface Env {
     ATTEST_STORE: KVNamespace;
     TEAM_ID: string;
     BUNDLE_ID: string;
+    tweety_credits: D1Database;
 }
 
 // Request body types
@@ -88,7 +92,10 @@ Promise<Response> {
             '/grok/v1/realtime/client_secrets',
             '/openai/v1/realtime/client_secrets',
             '/x/oauth2/token',
-            '/x/oauth2/refresh'
+            '/x/oauth2/refresh',
+            '/credits/transactions/sync',
+            '/credits/usage/track',
+            '/credits/balance'
         ];
 
         if (protectedPaths.some(path => url.pathname === path)) {
@@ -255,6 +262,20 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
             }
         }
 
+        // Credits: Sync transactions (batch)
+        if (url.pathname === '/credits/transactions/sync') {
+            return await syncTransactions(request, env);
+        }
+
+        // Credits: Track usage
+        if (url.pathname === '/credits/usage/track') {
+            return await trackUsage(request, env);
+        }
+
+        // Credits: Get balance
+        if (url.pathname === '/credits/balance') {
+            return await getBalance(request, env);
+        }
 
         return new Response('Not found', { status: 404 });
     }
