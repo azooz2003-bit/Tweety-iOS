@@ -20,23 +20,21 @@ class SpeechVAD {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
 
-    private(set) var isSpeaking = false // Expose as read-only
+    private(set) var isSpeaking = false
     private var silenceTimer: Timer?
-    private let silenceTimeout: TimeInterval = 1.0 // Consider silence after 1 second of no speech
+    private let silenceTimeout: TimeInterval = 1.0
 
     init() {
-        // Use device locale for best recognition
         speechRecognizer = SFSpeechRecognizer()
 
-        // Request speech recognition permission if needed
         SFSpeechRecognizer.requestAuthorization { status in
             switch status {
             case .authorized:
-                AppLogger.audio.info("✅ Speech recognition authorized")
+                AppLogger.audio.info("Speech recognition authorized")
             case .denied:
-                AppLogger.audio.warning("❌ Speech recognition denied")
+                AppLogger.audio.warning("Speech recognition denied")
             case .restricted:
-                AppLogger.audio.warning("⚠️ Speech recognition restricted")
+                AppLogger.audio.warning("Speech recognition restricted")
             case .notDetermined:
                 AppLogger.audio.info("Speech recognition not determined")
             @unknown default:
@@ -51,7 +49,6 @@ class SpeechVAD {
             return
         }
 
-        // Create a new recognition request
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
 
         guard let recognitionRequest = recognitionRequest else {
@@ -59,15 +56,12 @@ class SpeechVAD {
             return
         }
 
-        // Don't store audio on device
         recognitionRequest.shouldReportPartialResults = true
 
-        // Start recognition task
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             guard let self = self else { return }
 
             if let result = result {
-                // Speech detected!
                 self.handleSpeechDetected(result)
             }
 
@@ -76,7 +70,7 @@ class SpeechVAD {
             }
         }
 
-        AppLogger.audio.info("🎤 Speech-based VAD started")
+        AppLogger.audio.info("Speech-based VAD started")
     }
 
     func stopDetection() {
@@ -88,7 +82,7 @@ class SpeechVAD {
         silenceTimer = nil
         isSpeaking = false
 
-        AppLogger.audio.info("🛑 Speech-based VAD stopped")
+        AppLogger.audio.info("Speech-based VAD stopped")
     }
 
     func appendAudioBuffer(_ buffer: AVAudioPCMBuffer) {
@@ -96,21 +90,18 @@ class SpeechVAD {
     }
 
     private func handleSpeechDetected(_ result: SFSpeechRecognitionResult) {
-        // Check if we actually detected speech (not just silence)
         let hasText = !result.bestTranscription.formattedString.trimmingCharacters(in: .whitespaces).isEmpty
 
         if hasText && !isSpeaking {
-            // User started speaking!
             isSpeaking = true
             delegate?.speechVADDidDetectSpeech()
 
             #if DEBUG
-            AppLogger.audio.debug("🗣️ Speech detected: \"\(result.bestTranscription.formattedString)\"")
+            AppLogger.audio.debug("Speech detected: \"\(result.bestTranscription.formattedString)\"")
             #endif
         }
 
         if hasText {
-            // Reset silence timer on any speech
             silenceTimer?.invalidate()
             silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { [weak self] _ in
                 self?.handleSilenceDetected()
@@ -124,7 +115,7 @@ class SpeechVAD {
             delegate?.speechVADDidDetectSilence()
 
             #if DEBUG
-            AppLogger.audio.debug("🤫 Silence detected")
+            AppLogger.audio.debug("Silence detected")
             #endif
         }
     }

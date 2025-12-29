@@ -36,7 +36,7 @@ final class StoreViewModel {
         products.filter { $0.type == .consumable }
     }
 
-    func loadData() async {
+    func loadProductsAndBalance() async {
         do {
             try await storeManager.loadProducts()
 
@@ -56,11 +56,9 @@ final class StoreViewModel {
         do {
             _ = try await storeManager.purchase(product)
 
-            // Refresh balance after purchase
             let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
             self.creditBalance = try await creditsService.getBalance(userId: userId)
         } catch StoreError.userCancelled {
-            // User cancelled, no error message needed
             AppLogger.store.info("User cancelled purchase")
         } catch {
             self.errorMessage = "Purchase failed: \(error.localizedDescription)"
@@ -74,10 +72,8 @@ final class StoreViewModel {
         defer { isPurchasing = false }
 
         do {
-            // Process all unfinished transactions from StoreKit
             await storeManager.restoreAllTransactions()
 
-            // Fetch latest balance from server
             let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
             self.creditBalance = try await creditsService.getBalance(userId: userId)
 

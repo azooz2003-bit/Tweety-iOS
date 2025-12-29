@@ -21,7 +21,6 @@ actor RemoteCreditsService {
         let requestBody = ["transactions": transactions]
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        // Add App Attest headers
         try await request.addAppAttestHeaders()
 
         var lastError: Error?
@@ -38,7 +37,6 @@ actor RemoteCreditsService {
                     AppLogger.store.info("Transaction sync successful: \(syncResponse.processedCount) processed, \(syncResponse.newCreditsAdded) credits added")
                     return syncResponse
                 } else if httpResponse.statusCode == 403 {
-                    // Attestation failure
                     throw CreditsServiceError.attestationFailed
                 } else {
                     let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -67,7 +65,6 @@ actor RemoteCreditsService {
         let requestBody = UsageTrackRequest(userId: userId, service: service, usage: usage)
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        // Add App Attest headers
         try await request.addAppAttestHeaders()
 
         // NO retry - fail fast to stop session
@@ -100,7 +97,6 @@ actor RemoteCreditsService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        // Add App Attest headers
         try await request.addAppAttestHeaders()
 
         var lastError: Error?

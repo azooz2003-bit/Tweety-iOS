@@ -18,7 +18,6 @@ struct XToolIntegration {
 
     static func getToolDefinitions() -> [VoiceToolDefinition] {
         tools.map { tool in
-            // Convert JSONSchema to dictionary for VoiceToolDefinition
             let parametersDict: [String: Any]
             do {
                 let encoder = JSONEncoder()

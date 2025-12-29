@@ -150,13 +150,10 @@ class VoiceAssistantViewModel: NSObject {
             async let connect: () = voiceService.connect()
             async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
 
-            // Await both operations
             let (_, _) = (await userProfileResult, try await connect)
 
-            // Configure session with tools (must be after connection)
             let tools = XToolIntegration.getToolDefinitions()
 
-            // Get service-specific instructions
             let instructions: String
             if let xaiService = voiceService as? XAIVoiceService {
                 instructions = xaiService.instructions
@@ -339,21 +336,17 @@ class VoiceAssistantViewModel: NSObject {
     private func handleVoiceEvent(_ event: VoiceEvent) {
         switch event {
         case .sessionCreated:
-            // Session initialized
             break
 
         case .sessionConfigured:
-            // Session configured
             break
 
         case .userSpeechStarted:
-            // User started speaking - truncate ongoing response and stop playback
             try? voiceService?.truncateResponse()
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
         case .userSpeechStopped:
-            // User stopped speaking (server-side VAD)
             voiceSessionState = .connected
 
         case .assistantSpeaking(let itemId):
@@ -477,7 +470,6 @@ class VoiceAssistantViewModel: NSObject {
 
         addConversationItem(.toolCall(name: toolCall.functionName, status: .rejected))
 
-        // Move to next tool in queue
         moveToNextPendingTool()
     }
 
@@ -618,17 +610,17 @@ class VoiceAssistantViewModel: NSObject {
 
     #if DEBUG
     func testRefreshToken() async {
-        AppLogger.auth.info("🧪 Testing refresh token - forcing refresh by deleting access token...")
+        AppLogger.auth.info("Testing refresh token - forcing refresh by deleting access token...")
 
         // Now call getValidAccessToken which will trigger refresh
         guard let token = try? await authViewModel.authService.refreshAccessToken() else {
-            AppLogger.auth.error("❌ Refresh failed - refresh token likely expired")
-            addSystemMessage("❌ Refresh token test failed - you may need to re-login")
+            AppLogger.auth.error("Refresh failed - refresh token likely expired")
+            addSystemMessage("Refresh token test failed - you may need to re-login")
             return
         }
 
-        AppLogger.auth.info("✅ Successfully refreshed access token")
-        addSystemMessage("✅ Refresh token test passed - new token: \(token.prefix(20))...")
+        AppLogger.auth.info("Successfully refreshed access token")
+        addSystemMessage("Refresh token test passed - new token: \(token.prefix(20))...")
     }
     #endif
 }
@@ -657,14 +649,14 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
     nonisolated func audioStreamerDidDetectSpeechStart() {
         Task { @MainActor in
             // Speech framework detected actual speech
-            AppLogger.audio.debug("🗣️ Speech framework detected user speaking")
+            AppLogger.audio.debug("Speech framework detected user speaking")
         }
     }
 
     nonisolated func audioStreamerDidDetectSpeechEnd() {
         Task { @MainActor in
             // Speech framework detected silence - attempt commit (may fail if buffer is empty)
-            AppLogger.audio.debug("🤫 Speech framework detected silence - committing buffer")
+            AppLogger.audio.debug("Speech framework detected silence - committing buffer")
             do {
                 try voiceService?.commitAudioBuffer()
             } catch {

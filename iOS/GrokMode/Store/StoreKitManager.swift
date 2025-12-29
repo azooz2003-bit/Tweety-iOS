@@ -44,7 +44,6 @@ final class StoreKitManager {
             if case .verified(let transaction) = verificationResult,
                let appAccountToken = transaction.appAccountToken {
                 AppLogger.store.info("Found appAccountToken from historical transaction: \(transaction.productID)")
-                // Save to both keychain and iCloud
                 try await keychain.save(appAccountToken.uuidString, for: appAccountTokenKey)
                 iCloudStore.set(appAccountToken.uuidString, forKey: appAccountTokenKey)
                 return appAccountToken
@@ -67,7 +66,6 @@ final class StoreKitManager {
 
         AppLogger.store.info("Loaded \(loadedProducts.count) products")
 
-        // Update active subscriptions
         await updateActiveSubscriptions()
     }
 
@@ -89,8 +87,6 @@ final class StoreKitManager {
 
             AppLogger.store.info("Purchase successful: \(transaction.productID), transactionID: \(transaction.id), originalID: \(transaction.originalID)")
 
-            // Handle the transaction immediately to sync and finish it
-            // The observer may also receive this, but handleTransaction is idempotent on the server
             await handleTransaction(verificationResult)
 
             return transaction
@@ -114,10 +110,6 @@ final class StoreKitManager {
         AppLogger.store.info("Starting transaction observer - will process unfinished transactions and new purchases")
 
         transactionObserverTask = Task {
-            // Transaction.updates delivers:
-            // 1. All unfinished transactions (including from previous app sessions)
-            // 2. New transactions as they occur
-            // This is the single source of truth for transaction processing
             for await verificationResult in Transaction.updates {
                 await handleTransaction(verificationResult)
             }
@@ -135,8 +127,6 @@ final class StoreKitManager {
 
         var restoredCount = 0
 
-        // Process only unfinished transactions
-        // More efficient than Transaction.all since we skip already-finished transactions
         for await verificationResult in Transaction.unfinished {
             guard case .verified(let transaction) = verificationResult else {
                 continue
@@ -167,10 +157,9 @@ final class StoreKitManager {
             AppLogger.store.info("Transaction synced and finished: \(transaction.id)")
         } catch {
             AppLogger.store.error("Transaction sync failed, will retry: \(error)")
-            // Don't finish - let StoreKit re-deliver until sync succeeds
+            // Don't finish, let StoreKit redeliver later
         }
 
-        // Update active subscriptions
         await updateActiveSubscriptions()
     }
 
@@ -188,7 +177,6 @@ final class StoreKitManager {
 
         let response = try await creditsService.syncTransactions([request])
 
-        // Update the cached balance from the sync response
         self.creditBalance = CreditBalance(
             userId: response.userId,
             spent: response.spent,
@@ -198,13 +186,34 @@ final class StoreKitManager {
     }
 
     private func updateActiveSubscriptions() async {
-        var active: [Product] = []
+        var activeTransactions: [Transaction] = []
 
         for await verificationResult in Transaction.currentEntitlements {
-            if case .verified(let transaction) = verificationResult,
-               let product = products.first(where: { $0.id == transaction.productID }) {
-                active.append(product)
+            if case .verified(let transaction) = verificationResult {
+                activeTransactions.append(transaction)
             }
+        }
+
+        // Filter to only the most recent transaction per subscription group
+        
+        var latestPerGroup: [String: Transaction] = [:]
+        for transaction in activeTransactions {
+            guard let product = products.first(where: { $0.id == transaction.productID }),
+                  let subscriptionGroupID = product.subscription?.subscriptionGroupID else {
+                continue
+            }
+
+            if let existing = latestPerGroup[subscriptionGroupID] {
+                if transaction.purchaseDate > existing.purchaseDate {
+                    latestPerGroup[subscriptionGroupID] = transaction
+                }
+            } else {
+                latestPerGroup[subscriptionGroupID] = transaction
+            }
+        }
+
+        let active = latestPerGroup.values.compactMap { transaction in
+            products.first(where: { $0.id == transaction.productID })
         }
 
         self.activeSubscriptions = active

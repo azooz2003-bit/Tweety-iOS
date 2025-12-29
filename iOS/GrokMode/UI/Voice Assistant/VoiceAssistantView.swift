@@ -99,7 +99,6 @@ struct VoiceAssistantView: View {
                 }
             }
             .onChange(of: viewModel.voiceSessionState) { oldState, newState in
-                // Haptic feedback only when connection status changes (not during session state transitions)
                 let wasConnected = oldState.isConnected
                 let isNowConnected = newState.isConnected
 
@@ -108,7 +107,6 @@ struct VoiceAssistantView: View {
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
-                // Track partial usage when app backgrounds to preserve data if app is terminated
                 if newPhase == .background {
                     viewModel.trackPartialUsageIfNeeded()
                 }
@@ -161,8 +159,6 @@ struct VoiceAssistantView: View {
         let count = Int(width / totalSpacing) - 1
         return max(5, count)
     }
-
-    // MARK: - Subviews
 
     @ViewBuilder
     private var conversationList: some View {

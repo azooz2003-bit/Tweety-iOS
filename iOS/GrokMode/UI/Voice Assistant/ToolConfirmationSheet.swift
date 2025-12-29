@@ -17,7 +17,6 @@ struct ToolConfirmationSheet: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Header
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.shield.fill")
                     .font(.system(size: 24))
@@ -43,7 +42,6 @@ struct ToolConfirmationSheet: View {
             Divider()
                 .background(.white.opacity(0.2))
 
-            // Tool Details
             VStack(alignment: .leading, spacing: 8) {
                 Text(toolCall.previewTitle)
                     .font(.subheadline)
@@ -66,7 +64,6 @@ struct ToolConfirmationSheet: View {
 
             Spacer()
 
-            // Action Buttons
             HStack(spacing: 16) {
                 Button {
                     onCancel()
@@ -101,7 +98,6 @@ struct ToolConfirmationSheet: View {
             }
         }
         .padding(24)
-        // Removed custom background and presentation modifications
     }
 }
 

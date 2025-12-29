@@ -35,7 +35,6 @@ struct PrimaryContentBlock: View {
 
     var body: some View {
         VStack(alignment: .center, spacing: 12) {
-            // Retweet indicator (if this is a retweet)
             if let retweeterName = retweeterName {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.2.squarepath")
@@ -49,9 +48,7 @@ struct PrimaryContentBlock: View {
                 .padding(.vertical, 2)
             }
 
-            // Top: User icon and name centered and stacked
             VStack(spacing: 6) {
-                // Profile image with AsyncImage or fallback to X icon
                 Group {
                     imageView()
                 }
@@ -68,7 +65,6 @@ struct PrimaryContentBlock: View {
             }
             .frame(maxWidth: .infinity)
 
-            // Middle: Tweet text content with max height
             Text(text)
                 .font(.system(size: 16))
                 .foregroundColor(.primary)
@@ -76,13 +72,11 @@ struct PrimaryContentBlock: View {
                 .frame(maxWidth: .infinity, maxHeight: 200, alignment: .topLeading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Image Grid (if media exists)
             if let media = media, !media.isEmpty {
                 mediaGrid(mediaItems: media)
                     .frame(maxWidth: .infinity)
             }
 
-            // Quoted tweet (if this is a quote tweet)
             if let quotedTweet = quotedTweet {
                 CompactQuotedTweetView(
                     authorName: quotedTweet.authorName,
@@ -110,7 +104,6 @@ struct PrimaryContentBlock: View {
         }
     }
 
-    // Format large numbers (e.g., 1234 -> "1.2K", 1234567 -> "1.2M")
     private func formatCount(_ count: Int) -> String {
         if count >= 1_000_000 {
             return String(format: "%.1fM", Double(count) / 1_000_000)
@@ -123,10 +116,8 @@ struct PrimaryContentBlock: View {
 
     @ViewBuilder
     private func bottomInfo() -> some View {
-        // Bottom: Engagement metrics
         if let metrics = metrics {
             HStack(spacing: 16) {
-                // Views
                 HStack(spacing: 4) {
                     Image(systemName: "eye")
                         .font(.system(size: 11))
@@ -135,7 +126,6 @@ struct PrimaryContentBlock: View {
                 }
                 .foregroundColor(.primary.opacity(0.9))
 
-                // Retweets
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: 11))
@@ -144,7 +134,6 @@ struct PrimaryContentBlock: View {
                 }
                 .foregroundColor(.primary.opacity(0.9))
 
-                // Likes
                 HStack(spacing: 4) {
                     Image(systemName: "heart")
                         .font(.system(size: 11))
@@ -155,7 +144,6 @@ struct PrimaryContentBlock: View {
 
                 Spacer()
 
-                // X source icon
                 Image(sourceIcon)
                     .resizable()
                     .scaledToFit()
@@ -163,7 +151,6 @@ struct PrimaryContentBlock: View {
                     .opacity(0.8)
             }
         } else {
-            // Fallback if no metrics
             HStack {
                 Spacer()
                 Image(sourceIcon)
@@ -302,7 +289,6 @@ struct CompactQuotedTweetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Author info
             HStack(spacing: 4) {
                 Text(authorName)
                     .font(.system(size: 13, weight: .semibold))
@@ -312,14 +298,11 @@ struct CompactQuotedTweetView: View {
                     .foregroundColor(.secondary)
             }
 
-            // Tweet text
             Text(text)
                 .font(.system(size: 14))
                 .foregroundColor(.primary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
-
-            // Media preview (if exists) - show first image only
             if let media = media, let firstMedia = media.first, let urlString = firstMedia.displayUrl, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -412,7 +395,6 @@ struct CompactQuotedTweetView: View {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
             VStack(spacing: 24) {
-                // Simulates loading state with slow/non-existent images
                 PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Tech News",
@@ -460,7 +442,6 @@ struct CompactQuotedTweetView: View {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
             VStack(spacing: 24) {
-                // Uses invalid URLs to trigger failure state
                 PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Photography",
@@ -506,7 +487,6 @@ struct CompactQuotedTweetView: View {
                     quotedTweet: nil
                 )
 
-                // Single image failure
                 PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Artist",
@@ -538,7 +518,6 @@ struct CompactQuotedTweetView: View {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
             VStack(spacing: 24) {
-                // Uses actual working image URLs
                 PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Sample User",

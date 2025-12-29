@@ -726,7 +726,6 @@ actor XToolOrchestrator {
             throw XToolCallError.init(code: "999", message: "Not expected to handle confirmation/cancellation of actions in orchestrator.")
         }
 
-        // Build URL
         var urlComponents = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         if !queryItems.isEmpty {
             urlComponents?.queryItems = queryItems
@@ -738,13 +737,11 @@ actor XToolOrchestrator {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        // Use the appropriate authentication based on endpoint requirements
         if let token = try await getBearerToken(for: tool) {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Add body if present
         if !bodyParams.isEmpty {
             request.httpBody = try JSONSerialization.data(withJSONObject: bodyParams)
         }
@@ -799,7 +796,6 @@ actor XToolOrchestrator {
 
         enrichedJson["meta"] = enrichedMeta
 
-        // Convert back to JSON string
         if let enrichedData = try? JSONSerialization.data(withJSONObject: enrichedJson, options: [.prettyPrinted]),
            let enrichedString = String(data: enrichedData, encoding: .utf8) {
             return enrichedString

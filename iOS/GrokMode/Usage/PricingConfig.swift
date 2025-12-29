@@ -12,7 +12,6 @@ struct PricingConfig {
 
     // MARK: - Grok Voice Pricing
 
-    /// Cost per minute of Grok voice usage
     static let grokVoiceCostPerMinute: Decimal = 0.05
 
     // MARK: - OpenAI Realtime Pricing (per 1 million tokens)
@@ -31,10 +30,6 @@ struct PricingConfig {
     static let xAPIContentCreate: Decimal = 0.01
     static let xAPIDMInteractionCreate: Decimal = 0.01
     static let xAPIUserInteractionCreate: Decimal = 0.015
-
-    // MARK: - Helper Methods
-
-    /// Calculate cost for OpenAI tokens
     static func calculateOpenAICost(
         audioInputTokens: Int = 0,
         audioOutputTokens: Int = 0,
@@ -51,7 +46,6 @@ struct PricingConfig {
         return audioInputCost + audioOutputCost + textInputCost + textOutputCost + cachedTextInputCost
     }
 
-    /// Calculate cost for Grok voice minutes
     static func calculateGrokVoiceCost(minutes: Double) -> Decimal {
         return Decimal(minutes) * grokVoiceCostPerMinute
     }

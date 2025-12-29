@@ -17,7 +17,6 @@ class WaveformAnimator {
     private var time: TimeInterval = 0
 
     init() {
-        // Generate random phase offsets for each bar to create varied oscillation
         phaseOffsets = (0..<30).map { _ in CGFloat.random(in: 0...2 * .pi) }
     }
 
@@ -35,35 +34,26 @@ class WaveformAnimator {
         timer?.invalidate()
         timer = nil
 
-        // Smoothly return to baseline
         withAnimation(.easeOut(duration: 0.3)) {
             amplitudes = Array(repeating: 0.3, count: amplitudes.count)
         }
     }
 
-    /// Updates the waveform based on audio input level
-    /// Call this method whenever you receive audio data to animate the waveform
-    /// - Parameter audioLevel: The audio level (0.0 to 1.0) to drive the waveform animation
     func updateAudioLevel(_ audioLevel: CGFloat) {
         let clampedLevel = max(0.0, min(1.0, audioLevel))
-        time += 0.05 // Increment time for wave animation
+        time += 0.05
 
-        // Generate dynamic amplitudes with wave-like oscillation
         let newAmplitudes = amplitudes.enumerated().map { index, currentValue in
-            // Create wave pattern across bars with individual phase offsets
-            let wavePosition = CGFloat(index) * 0.5 // Spacing between bars in the wave
+            let wavePosition = CGFloat(index) * 0.5
             let phase = phaseOffsets[index]
-            let wave = sin(time * 4 + wavePosition + phase) // Oscillate over time
+            let wave = sin(time * 4 + wavePosition + phase)
 
-            // Combine base audio level with wave oscillation
-            let baseVariance = CGFloat.random(in: 0.6...1.4) // Wider variance range
-            let waveInfluence = wave * 0.3 // Wave adds ±30% variation
+            let baseVariance = CGFloat.random(in: 0.6...1.4)
+            let waveInfluence = wave * 0.3
             let targetValue = clampedLevel * baseVariance * (1.0 + waveInfluence)
 
-            // Clamp to valid range
             let clampedTarget = max(0.1, min(1.0, targetValue))
 
-            // Smooth transition with momentum
             return currentValue * 0.6 + clampedTarget * 0.4
         }
 
@@ -74,16 +64,12 @@ class WaveformAnimator {
 
     private func updateAmplitudes() {
         DispatchQueue.main.async {
-            // Generate speech-like pattern with varying intensities
             let newAmplitudes = self.amplitudes.enumerated().map { index, currentValue in
-                // Create wave-like motion with some randomness
                 let baseWave = sin(Date().timeIntervalSince1970 * 3 + Double(index) * 0.8)
                 let randomness = CGFloat.random(in: 0.2...0.9)
 
-                // Mix wave pattern with randomness for natural speech feel
                 let targetValue = (CGFloat(baseWave) + 1) / 2 * 0.4 + randomness * 0.6
 
-                // Smooth transition from current to target
                 return currentValue * 0.6 + targetValue * 0.4
             }
 
@@ -161,8 +147,6 @@ struct AnimatedWaveformView: View {
         let minHeight: CGFloat = 8
         let maxHeight: CGFloat = 40
 
-        // Map the bar index to the amplitude array
-        // If we have more bars than amplitudes, cycle through the amplitudes
         let amplitudeIndex = index % animator.amplitudes.count
         let amplitude = animator.amplitudes[amplitudeIndex]
 

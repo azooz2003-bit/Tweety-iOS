@@ -486,7 +486,6 @@ class OpenAIVoiceService: VoiceService {
         AppLogger.voice.info("Truncating response at \(self.currentAudioDurationMs)ms for item: \(itemId)")
         try sendMessage(truncateMessage)
 
-        // Reset tracking after truncation
         currentAssistantItemId = nil
         currentAudioDurationMs = 0
     }
@@ -568,7 +567,6 @@ class OpenAIVoiceService: VoiceService {
             onConnected?()
 
         case .responseCreated:
-            // Reset audio duration tracking for new response
             currentAudioDurationMs = 0
             currentAssistantItemId = nil
             AppLogger.voice.debug("New response created, reset audio tracking")

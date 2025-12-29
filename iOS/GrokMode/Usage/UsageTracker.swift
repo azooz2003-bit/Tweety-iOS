@@ -14,14 +14,10 @@ internal import os
 class UsageTracker {
     static let shared = UsageTracker()
 
-    // MARK: - Usage Data
-
     var grokVoiceUsage = GrokVoiceUsage()
     var openAIUsage = OpenAIUsage()
     var xAPIUsage = XAPIUsage()
     var usagePeriodStart: Date = Date()
-
-    // MARK: - Computed Totals
 
     var totalCost: Decimal {
         grokVoiceUsage.totalCost + openAIUsage.totalCost + xAPIUsage.totalCost
@@ -30,8 +26,6 @@ class UsageTracker {
     private init() {
         loadUsage()
     }
-
-    // MARK: - Tracking Methods
 
     func trackGrokVoiceMinute() {
         grokVoiceUsage.totalMinutes += 1.0
@@ -138,10 +132,8 @@ class UsageTracker {
         minutes: Double,
         userId: String
     ) async -> Result<CreditBalance, Error> {
-        // Track locally first
         trackGrokVoicePartialMinute(seconds: minutes * 60.0)
 
-        // Register with server
         do {
             let usage = UsageDetails.grokVoice(GrokVoiceUsageDetails(minutes: minutes))
 
@@ -170,10 +162,8 @@ class UsageTracker {
         count: Int,
         userId: String
     ) async -> Result<CreditBalance, Error> {
-        // Track locally first
         trackXAPIUsage(operation: operation, count: count)
 
-        // Register with server
         do {
             var postsRead: Int? = nil
             var usersRead: Int? = nil

@@ -15,10 +15,7 @@ final class AuthViewModel {
 
     let authService = XAuthService(authPresentationProvider: .init())
 
-    /// Start observing auth state changes
-    /// Call this from a view's .task {} modifier to tie lifecycle to view
     func startObserving() async {
-        // Check initial status to emit current state
         await authService.checkStatus()
 
         for await state in authService.authStateStream {

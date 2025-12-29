@@ -79,7 +79,6 @@ class SessionState {
     var toolCalls: [ToolLog] = []
     
     func addCall(id: String, toolName: String, parameters: [String: Any], itemId: String? = nil) {
-        // Convert [String: Any] to [String: String] for storage, checking types
         var stringParams: [String: String] = [:]
         for (key, value) in parameters {
             stringParams[key] = "\(value)"
@@ -95,7 +94,6 @@ class SessionState {
 
         let log = ToolLog(call: callData, response: nil)
 
-        // Append to start or end? Usually end makes sense for logs.
         DispatchQueue.main.async {
             self.toolCalls.append(log)
         }
@@ -105,6 +103,7 @@ class SessionState {
         guard let index = toolCalls.firstIndex(where: { $0.id == id }) else { return }
         
         // Determine content type based on tool name
+
         let toolName = toolCalls[index].call.toolName
         let content: ToolResponseContent
         

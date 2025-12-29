@@ -125,11 +125,9 @@ struct SettingsView: View {
                 }
             }
             .task {
-                // Restore any unfinished transactions first
                 await StoreKitManager.shared.restoreAllTransactions()
 
-                // Then load products and balance
-                await viewModel.loadData()
+                await viewModel.loadProductsAndBalance()
             }
         }
     }
