@@ -9,4 +9,3 @@ X (Twitter) voice assistant app for iOS.
 - **`iOS/GrokMode/UI/`** - SwiftUI views: voice assistant, conversation items, content blocks, settings
 - **`iOS/GrokMode/UI/Voice Assistant/Models/`** - Conversation state, item types, tool call status
 - **`Proxy/grokmode-proxy/`** - Cloudflare Worker for secure API key handling (xAI/OpenAI tokens, X OAuth2)
-- **`Android/GrokMode/`** - Android app
