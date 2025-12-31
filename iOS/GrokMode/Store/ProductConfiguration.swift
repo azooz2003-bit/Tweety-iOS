@@ -10,18 +10,12 @@ import Foundation
 enum ProductConfiguration {
     enum ProductID: String, CaseIterable {
         case plus = "co.azizalbahar.TweetyXVoiceAssistant.plusSub"
-        case pro = "co.azizalbahar.TweetyXVoiceAssistant.proSub"
-        case ultra = "co.azizalbahar.TweetyXVoiceAssistant.ultraSub"
         case credits10 = "co.azizalbahar.TweetyXVoiceAssistant.credits.10"
 
         var creditsAmount: Double {
             switch self {
             case .plus:
                 return 8.00
-            case .pro:
-                return 14.00
-            case .ultra:
-                return 28.00
             case .credits10:
                 return 10.00
             }
@@ -29,7 +23,7 @@ enum ProductConfiguration {
 
         var isSubscription: Bool {
             switch self {
-            case .plus, .pro, .ultra:
+            case .plus:
                 return true
             case .credits10:
                 return false

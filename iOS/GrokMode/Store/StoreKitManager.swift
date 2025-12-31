@@ -129,6 +129,7 @@ final class StoreKitManager {
 
         let task = Task {
             await performRestore()
+            await updateActiveSubscriptions()
         }
 
         restoreTask = task

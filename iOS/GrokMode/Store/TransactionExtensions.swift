@@ -7,6 +7,7 @@
 
 import Foundation
 import StoreKit
+internal import os
 
 extension Date {
     /// Convert Date to milliseconds since epoch as String
@@ -27,7 +28,7 @@ extension Transaction {
             isTrialPeriod: offer?.type == .introductory ? "true" : "false",
             expirationDateMs: expirationDate?.millisecondsSince1970String,
             revocationDateMs: revocationDate?.millisecondsSince1970String,
-            revocationReason: revocationReason.map { "\($0)" },  // Use string interpolation
+            revocationReason: revocationReason.map { "\($0)" },
             ownershipType: String(describing: ownershipType)
         )
     }

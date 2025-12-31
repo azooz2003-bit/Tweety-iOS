@@ -71,51 +71,38 @@ export function getCreditsForProduct(productId: string, isTrial: boolean): numbe
 		return 0;
 	}
 
-	switch (productId) {
-		case 'co.azizalbahar.TweetyXVoiceAssistant.plusSub':
-			return 8.00;  // $8 in credits
-
-		case 'co.azizalbahar.TweetyXVoiceAssistant.proSub':
-			return 14.00;  // $14 in credits
-
-		case 'co.azizalbahar.TweetyXVoiceAssistant.ultraSub':
-			return 28.00;  // $28 in credits
-
-		default:
-			// For one-time credit purchases, could parse amount from product ID
-			// e.g., 'com.grokmode.credits.10' -> 10.00
-			if (productId.includes('.credits.')) {
-				const amount = parseFloat(productId.split('.credits.')[1]);
-				return isNaN(amount) ? 0 : amount;
-			}
-			return 0;
+	// Tweety Plus subscription
+	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.plusSub') {
+		return 8.00;  // $8 in credits
 	}
+
+	// One-time credit purchases - ONLY allow whitelisted amounts
+	// This prevents malicious clients from requesting arbitrary credit amounts
+	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.credits.10') {
+		return 10.00;
+	}
+
+	// Unknown or invalid product ID
+	console.error(`Invalid product ID received: ${productId}`);
+	return 0;
 }
 
 /**
  * Get the subscription price (what user pays per cycle)
- * Used for upgrade proration calculations
- * IMPORTANT: These prices MUST match your App Store Connect configuration
+ * IMPORTANT: This price MUST match your App Store Connect configuration
  * @param productId - Apple product ID
  * @returns Price in USD per billing cycle
  */
 export function getPriceForProduct(productId: string): number {
-	switch (productId) {
-		case 'co.azizalbahar.TweetyXVoiceAssistant.plusSub':
-			return 14.99;  // $14.99/week
-
-		case 'co.azizalbahar.TweetyXVoiceAssistant.proSub':
-			return 23.99;  // $23.99/week
-
-		case 'co.azizalbahar.TweetyXVoiceAssistant.ultraSub':
-			return 43.99;  // $43.99/week
-
-		default:
-			// For one-time credit purchases, price = credits (1:1 ratio)
-			if (productId.includes('.credits.')) {
-				const amount = parseFloat(productId.split('.credits.')[1]);
-				return isNaN(amount) ? 0 : amount;
-			}
-			return 0;
+	// Tweety Plus subscription
+	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.plusSub') {
+		return 14.99;  // $14.99/week
 	}
+
+	// One-time credit purchases - whitelist only
+	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.credits.10') {
+		return 10.00;
+	}
+
+	return 0;
 }

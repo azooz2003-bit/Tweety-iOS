@@ -213,7 +213,7 @@ class VoiceAssistantViewModel: NSObject {
 
                 let balance = try await RemoteCreditsService.shared.getBalance(userId: userId)
 
-                guard balance.remaining > 0 else {
+                guard balance.remaining > 0, !StoreKitManager.shared.activeSubscriptions.isEmpty else {
                     self.voiceSessionState = .error("Insufficient credits. Please purchase more.")
                     self.isSessionActivated = false
                     self.addSystemMessage("Session blocked: Insufficient credits")

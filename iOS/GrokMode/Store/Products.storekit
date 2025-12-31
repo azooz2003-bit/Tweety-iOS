@@ -112,7 +112,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Weekly subscription providing $11 in API credits",
+              "description" : "Weekly subscription providing $8 in API credits",
               "displayName" : "Tweety Plus",
               "locale" : "en_US"
             }
@@ -120,56 +120,6 @@
           "productID" : "co.azizalbahar.TweetyXVoiceAssistant.plusSub",
           "recurringSubscriptionPeriod" : "P1W",
           "referenceName" : "Tweety Plus",
-          "subscriptionGroupID" : "21543962",
-          "type" : "RecurringSubscription"
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "23.99",
-          "familyShareable" : false,
-          "groupNumber" : 2,
-          "internalID" : "6670028872",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Weekly subscription with $20 credits + custom voice selection",
-              "displayName" : "Tweety Pro",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "co.azizalbahar.TweetyXVoiceAssistant.proSub",
-          "recurringSubscriptionPeriod" : "P1W",
-          "referenceName" : "Tweety Pro",
-          "subscriptionGroupID" : "21543962",
-          "type" : "RecurringSubscription"
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "43.99",
-          "familyShareable" : false,
-          "groupNumber" : 3,
-          "internalID" : "6670028873",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Premium weekly subscription with $40 credits and custom voice selection",
-              "displayName" : "Tweety Ultra",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "co.azizalbahar.TweetyXVoiceAssistant.ultraSub",
-          "recurringSubscriptionPeriod" : "P1W",
-          "referenceName" : "Tweety Ultra",
           "subscriptionGroupID" : "21543962",
           "type" : "RecurringSubscription"
         }

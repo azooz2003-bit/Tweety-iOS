@@ -4,11 +4,10 @@ import { getCreditsForProduct, getPriceForProduct } from './pricing';
 export type TransactionType =
 	| 'NEW_SUBSCRIPTION'
 	| 'RENEWAL'
-	| 'UPGRADE'
-	| 'DOWNGRADE'
 	| 'RESUBSCRIPTION'
 	| 'REFUND'
-	| 'ONE_TIME_PURCHASE';
+	| 'ONE_TIME_PURCHASE'
+	| 'FAMILY_SHARED';
 
 interface TransactionHistory {
 	product_id: string;
@@ -26,15 +25,27 @@ interface ClassificationResult {
 }
 
 /**
- * Classify transaction type and calculate credits using tier ratio approach
- * Maintains same profit margin as target tier during upgrades
+ * Classify transaction type and calculate credits
+ * Simplified for single-tier subscription model (Tweety Plus only)
  */
 export async function classifyTransaction(
 	transaction: AppleTransaction,
 	env: { tweety_credits: D1Database }
 ): Promise<ClassificationResult> {
 
-	// Check if it's a refund first
+	// Check for family sharing FIRST - only the purchaser should get credits
+	// Family members who access the subscription via Family Sharing get PURCHASED as ownership_type
+	// on first-time setup, but get FAMILY_SHARED on subsequent transactions
+	if (transaction.ownership_type === 'FAMILY_SHARED') {
+		return {
+			type: 'FAMILY_SHARED',
+			creditsToGrant: 0,
+			previousProductId: null,
+			notes: 'Family shared subscription - credits only granted to original purchaser'
+		};
+	}
+
+	// Check if it's a refund
 	if (transaction.revocation_date_ms) {
 		return await handleRefund(transaction, env);
 	}
@@ -44,7 +55,6 @@ export async function classifyTransaction(
 		return handleOneTimePurchase(transaction);
 	}
 
-	// Get transaction history for this subscription chain
 	const history = await getTransactionHistory(
 		transaction.original_transaction_id,
 		env
@@ -92,64 +102,17 @@ export async function classifyTransaction(
 		}
 	}
 
-	// RENEWAL - same product
-	if (transaction.product_id === previousTransaction.product_id) {
-		const credits = getCreditsForProduct(
-			transaction.product_id,
-			transaction.is_trial_period === 'true'
-		);
-		return {
-			type: 'RENEWAL',
-			creditsToGrant: credits,
-			previousProductId: previousTransaction.product_id,
-			notes: 'Regular renewal of same tier'
-		};
-	}
-
-	// UPGRADE or DOWNGRADE - different product
-	const currentCredits = getCreditsForProduct(transaction.product_id, false);
-	const previousCredits = getCreditsForProduct(previousTransaction.product_id, false);
-
-	if (currentCredits > previousCredits) {
-		// UPGRADE - maintain target tier's profit margin on total revenue
-		// Calculate days remaining and Apple's refund amount
-		const previousExpirationDate = previousTransaction.expiration_date || 0;
-		const daysRemaining = (previousExpirationDate - currentPurchaseDate) / (1000 * 60 * 60 * 24);
-		const daysInCycle = 7; // Weekly subscriptions (production value)
-
-		const previousPrice = getPriceForProduct(previousTransaction.product_id);
-		const currentPrice = getPriceForProduct(transaction.product_id);
-
-		// Apple's proration calculation
-		const refundAmount = (previousPrice / daysInCycle) * daysRemaining;
-
-		// Calculate total revenue after refunds
-		const additionalRevenue = currentPrice - refundAmount;
-
-		// Apply target tier's ratio to total revenue
-		const tierRatio = currentCredits / currentPrice;
-		const targetTotalCredits = additionalRevenue * tierRatio;
-
-		// Subtract credits already given for previous tier
-		const creditsForUpgrade = targetTotalCredits - previousCredits;
-
-		return {
-			type: 'UPGRADE',
-			creditsToGrant: creditsForUpgrade,
-			previousProductId: previousTransaction.product_id,
-			notes: `Upgrade: Total revenue $${additionalRevenue.toFixed(2)} × ${tierRatio.toFixed(3)} ratio = $${targetTotalCredits.toFixed(2)} target, minus $${previousCredits.toFixed(2)} already given = $${creditsForUpgrade.toFixed(2)} credits`
-		};
-	} else {
-		// DOWNGRADE - treat as renewal at lower tier (happens at renewal date, not immediately)
-		// User paid full price for lower tier, so grant full credits
-		const credits = getCreditsForProduct(transaction.product_id, false);
-		return {
-			type: 'DOWNGRADE',
-			creditsToGrant: credits,
-			previousProductId: previousTransaction.product_id,
-			notes: `Downgrade from ${previousTransaction.product_id} to ${transaction.product_id}: granting full lower-tier credits ($${credits.toFixed(2)})`
-		};
-	}
+	// RENEWAL - with single tier, all continuing subscriptions are renewals
+	const credits = getCreditsForProduct(
+		transaction.product_id,
+		transaction.is_trial_period === 'true'
+	);
+	return {
+		type: 'RENEWAL',
+		creditsToGrant: credits,
+		previousProductId: previousTransaction.product_id,
+		notes: 'Subscription renewal'
+	};
 }
 
 /**
@@ -178,18 +141,32 @@ async function getTransactionHistory(
 /**
  * Handle refund transactions
  * Note: Refunds are for actual customer refunds, NOT for upgrades (which are handled by proration)
+ *
+ * When Apple issues a refund, they send the same transaction with revocation_date_ms set.
+ * We need to find the original purchase (without revocation_date) to know how much to deduct.
  */
 async function handleRefund(
 	transaction: AppleTransaction,
 	env: { tweety_credits: D1Database }
 ): Promise<ClassificationResult> {
 	try {
-		// Find the original transaction that granted credits
+		// Find the ORIGINAL purchase transaction (before refund) in the subscription chain
+		// The original transaction has the same original_transaction_id but NO revocation_date
 		const original = await env.tweety_credits.prepare(
-			'SELECT credits_amount FROM receipts WHERE transaction_id = ?'
-		).bind(transaction.transaction_id).first<{ credits_amount: number }>();
+			`SELECT credits_amount
+			 FROM receipts
+			 WHERE original_transaction_id = ?
+			 AND revocation_date IS NULL
+			 AND credits_amount > 0
+			 ORDER BY purchase_date DESC
+			 LIMIT 1`
+		).bind(transaction.original_transaction_id).first<{ credits_amount: number }>();
 
 		const creditsToDeduct = original?.credits_amount || 0;
+
+		if (creditsToDeduct === 0) {
+			console.warn(`Refund received for transaction ${transaction.transaction_id}, but no original purchase found in chain ${transaction.original_transaction_id}`);
+		}
 
 		return {
 			type: 'REFUND',
