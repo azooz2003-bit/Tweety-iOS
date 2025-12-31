@@ -45,12 +45,12 @@ export async function classifyTransaction(
 		};
 	}
 
-	// Check if it's a refund
+	// Is it a refund?
 	if (transaction.revocation_date_ms) {
 		return await handleRefund(transaction, env);
 	}
 
-	// Check if one-time purchase (no expiration date means not a subscription)
+	// Is it OTP? (no expiration date means not a subscription)
 	if (!transaction.expiration_date_ms) {
 		return handleOneTimePurchase(transaction);
 	}
@@ -79,12 +79,10 @@ export async function classifyTransaction(
 	const previousTransaction = history[history.length - 1];
 	const currentPurchaseDate = parseInt(transaction.purchase_date_ms);
 
-	// Check for resubscription (gap in service)
 	if (previousTransaction.expiration_date) {
 		const previousExpirationDate = previousTransaction.expiration_date;
 		const gapInDays = (currentPurchaseDate - previousExpirationDate) / (1000 * 60 * 60 * 24);
 
-		// Any positive gap means no active subscription = resubscription
 		if (gapInDays > 0) {
 			const credits = getCreditsForProduct(
 				transaction.product_id,
@@ -186,9 +184,6 @@ async function handleRefund(
 	}
 }
 
-/**
- * Handle one-time credit purchases
- */
 function handleOneTimePurchase(
 	transaction: AppleTransaction
 ): ClassificationResult {

@@ -54,7 +54,7 @@ struct PurchaseProductRow: View {
                         .padding(.vertical, 6)
                 }
             }
-            .background(Color.accentColor)
+            .background(Color.black)
             .foregroundStyle(.white)
             .clipShape(Capsule())
             .disabled(isPurchasing || isActive)

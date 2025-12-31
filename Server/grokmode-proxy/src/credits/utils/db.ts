@@ -4,9 +4,6 @@ interface Env {
 	tweety_credits: D1Database;
 }
 
-/**
- * Get remaining credits for a user
- */
 export async function getRemainingCredits(userId: string, env: Env): Promise<CreditBalance> {
 	const userResult = await env.tweety_credits.prepare(
 		'SELECT credits_spent FROM users WHERE user_id = ?'
@@ -27,9 +24,6 @@ export async function getRemainingCredits(userId: string, env: Env): Promise<Cre
 	};
 }
 
-/**
- * Check if a transaction has already been processed
- */
 export async function isTransactionProcessed(transactionId: string, env: Env): Promise<boolean> {
 	const result = await env.tweety_credits.prepare(
 		'SELECT id FROM receipts WHERE transaction_id = ?'
@@ -38,9 +32,6 @@ export async function isTransactionProcessed(transactionId: string, env: Env): P
 	return result !== null;
 }
 
-/**
- * Create user if doesn't exist
- */
 export async function createUserIfNotExists(userId: string, env: Env): Promise<void> {
 	await env.tweety_credits.prepare(
 		'INSERT INTO users (user_id, credits_spent) VALUES (?, 0) ON CONFLICT (user_id) DO NOTHING'
@@ -76,9 +67,6 @@ export async function storeReceipt(
 	).run();
 }
 
-/**
- * Update user's credits spent
- */
 export async function updateCreditsSpent(
 	userId: string,
 	additionalCost: number,
@@ -89,9 +77,6 @@ export async function updateCreditsSpent(
 	).bind(additionalCost, userId).run();
 }
 
-/**
- * Log usage for analytics
- */
 export async function logUsage(
 	userId: string,
 	service: string,

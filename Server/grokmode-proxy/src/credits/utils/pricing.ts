@@ -1,6 +1,5 @@
 import { UsageData } from '../types';
 
-// Pricing constants (matches iOS PricingConfig.swift)
 const PRICING = {
 	grokVoice: {
 		perMinute: 0.05
@@ -60,20 +59,13 @@ export function calculateCost(service: string, usage: UsageData): number {
 	return cost;
 }
 
-/**
- * Get credit amount for a product
- * @param productId - Apple product ID
- * @param isTrial - Whether this is a trial period
- * @returns Credits amount in USD
- */
 export function getCreditsForProduct(productId: string, isTrial: boolean): number {
 	if (isTrial) {
 		return 0;
 	}
 
-	// Tweety Plus subscription
 	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.plusSub') {
-		return 8.00;  // $8 in credits
+		return 8.00;
 	}
 
 	// One-time credit purchases - ONLY allow whitelisted amounts
@@ -82,19 +74,11 @@ export function getCreditsForProduct(productId: string, isTrial: boolean): numbe
 		return 10.00;
 	}
 
-	// Unknown or invalid product ID
 	console.error(`Invalid product ID received: ${productId}`);
 	return 0;
 }
 
-/**
- * Get the subscription price (what user pays per cycle)
- * IMPORTANT: This price MUST match your App Store Connect configuration
- * @param productId - Apple product ID
- * @returns Price in USD per billing cycle
- */
 export function getPriceForProduct(productId: string): number {
-	// Tweety Plus subscription
 	if (productId === 'co.azizalbahar.TweetyXVoiceAssistant.plusSub') {
 		return 14.99;  // $14.99/week
 	}

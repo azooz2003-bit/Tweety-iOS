@@ -9,11 +9,7 @@ export function getUserIdFromTransactions(transactions: AppleTransaction[]): str
 		throw new Error('No transactions provided');
 	}
 
-	// All transactions should have the same appAccountToken
-	// Just get it from the first one
 	const firstTransaction = transactions[0];
 
-	// In our simplified approach, we'll receive appAccountToken directly
-	// from iOS in the transaction data
 	return firstTransaction.app_account_token || '';
 }

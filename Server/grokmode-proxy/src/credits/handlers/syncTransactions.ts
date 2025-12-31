@@ -87,10 +87,9 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 				? parseInt(transaction.revocation_date_ms)
 				: null;
 
-			// Handle refunds differently - they update existing transactions
+			// Handle refunds differently - update existing transactions
 			if (classification.type === 'REFUND') {
 				try {
-					// Update existing transaction with revocation info and deduct credits
 					const result = await env.tweety_credits.prepare(
 						`UPDATE receipts
 						 SET revocation_date = ?,
@@ -110,7 +109,7 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 					).run();
 
 					if (result.meta.changes > 0) {
-						newCreditsAdded += creditsAmount; // Will be negative
+						newCreditsAdded += creditsAmount;
 						processedCount++;
 					} else {
 						console.warn(`Refund transaction ${transaction.transaction_id} not found in database - may need to insert as new refund record`);
@@ -148,7 +147,6 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 						classification.notes
 					).run();
 
-					// Only count as processed if insert succeeded (not ignored)
 					const inserted = await isTransactionProcessed(transaction.transaction_id, env);
 					if (inserted) {
 						newCreditsAdded += creditsAmount;
@@ -160,7 +158,6 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 					const errorMsg = `Transaction ${transaction.transaction_id}: ${error instanceof Error ? error.message : String(error)}`;
 					console.error(`Failed to insert transaction:`, errorMsg);
 					errors.push(errorMsg);
-					// Continue processing other transactions
 				}
 			}
 		}
