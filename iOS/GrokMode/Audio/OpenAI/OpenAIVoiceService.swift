@@ -27,7 +27,7 @@ class OpenAIVoiceService: VoiceService {
         case alloy, ash, ballad, coral, echo, sage, shimmer, verse
     }
 
-    let voice = Voice.coral
+    let voice: Voice
     var instructions = """
     You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
 
@@ -91,11 +91,12 @@ class OpenAIVoiceService: VoiceService {
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker, sampleRate: Int = 24000) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: Voice = .coral, sampleRate: Int = 24000) {
         self.sessionState = sessionState
         self.appAttestService = appAttestService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
+        self.voice = voice
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
     }

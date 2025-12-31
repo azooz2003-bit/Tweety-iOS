@@ -66,6 +66,7 @@ struct PurchaseProductRow: View {
     let appAttestService = AppAttestService()
     let creditsService = RemoteCreditsService(appAttestService: appAttestService)
     SettingsView(
+        authViewModel: .init(appAttestService: .init()),
         storeManager: StoreKitManager(creditsService: creditsService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),

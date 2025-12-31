@@ -19,6 +19,7 @@ struct VoiceAssistantView: View {
     let shouldAutoconnect: Bool
     let imageCache: ImageCache
     let creditsService: RemoteCreditsService
+    let authViewModel: AuthViewModel
 
     let barWidth: CGFloat = 3
     let barSpacing: CGFloat = 4
@@ -35,6 +36,7 @@ struct VoiceAssistantView: View {
         self.shouldAutoconnect = autoConnect
         self.imageCache = imageCache
         self.creditsService = creditsService
+        self.authViewModel = authViewModel
         self._viewModel = State(initialValue: VoiceAssistantViewModel(
             authViewModel: authViewModel,
             appAttestService: appAttestService,
@@ -71,9 +73,20 @@ struct VoiceAssistantView: View {
                         Image(systemName: "gear")
                     }
                 }
-                
+
                 ToolbarItem(placement: .topBarTrailing) {
-                    debugPicker
+                    Menu("Voice Selection", systemImage: "mouth.fill") {
+                        Section("Select Voice") {
+                            Picker("Voice", selection: $viewModel.selectedVoice) {
+                                ForEach(viewModel.selectedServiceType.availableVoices) { voice in
+                                    Text(voice.displayName)
+                                        .tag(voice)
+                                }
+                            }
+                            .pickerStyle(.inline)
+                            .disabled(viewModel.isSessionActivated)
+                        }
+                    }
                 }
 
                 ToolbarItem(placement:.bottomBar) {
@@ -129,6 +142,11 @@ struct VoiceAssistantView: View {
                     viewModel.trackPartialUsageIfNeeded()
                 }
             }
+            .onChange(of: viewModel.selectedServiceType) { oldService, newService in
+                if !newService.availableVoices.contains(viewModel.selectedVoice) {
+                    viewModel.selectedVoice = newService.defaultVoice
+                }
+            }
         }
         .sheet(item: Binding(
             get: { viewModel.currentPendingToolCall },
@@ -145,6 +163,7 @@ struct VoiceAssistantView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(
+                authViewModel: authViewModel,
                 storeManager: viewModel.storeManager,
                 creditsService: creditsService,
                 usageTracker: viewModel.usageTracker,
@@ -208,52 +227,6 @@ struct VoiceAssistantView: View {
             }
         }
         .font(.system(size: 20))
-    }
-
-    @ViewBuilder
-    private var debugPicker: some View {
-        Menu {
-            Menu("Voice Service") {
-                Picker("Service", selection: $viewModel.selectedServiceType) {
-                    ForEach(VoiceServiceType.allCases) { serviceType in
-                        Label(serviceType.displayName, systemImage: serviceType == .xai ? "circle.slash" : "brain.head.profile")
-                            .tag(serviceType)
-                    }
-                }
-                .pickerStyle(.inline)
-                .disabled(viewModel.isSessionActivated)
-            }
-
-            Section {
-                Button {
-                    Task {
-                        await viewModel.logoutX()
-                    }
-                } label: {
-                    Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            }
-
-            #if DEBUG
-            Section("Debug") {
-                Button {
-                    Task {
-                        await viewModel.testRefreshToken()
-                    }
-                } label: {
-                    Label("Test Refresh Token", systemImage: "arrow.clockwise")
-                }
-
-                NavigationLink {
-                    UsageDashboardView(tracker: viewModel.usageTracker)
-                } label: {
-                    Label("Usage & Costs", systemImage: "chart.bar.fill")
-                }
-            }
-            #endif
-        } label: {
-            Image(systemName: "ellipsis")
-        }
     }
 
     @ViewBuilder

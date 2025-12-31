@@ -12,9 +12,11 @@ struct SettingsView: View {
 
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
+    let authViewModel: AuthViewModel
     let onLogout: () async -> Void
 
-    init(storeManager: StoreKitManager, creditsService: RemoteCreditsService, usageTracker: UsageTracker, onLogout: @escaping () async -> Void) {
+    init(authViewModel: AuthViewModel, storeManager: StoreKitManager, creditsService: RemoteCreditsService, usageTracker: UsageTracker, onLogout: @escaping () async -> Void) {
+        self.authViewModel = authViewModel
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.onLogout = onLogout
@@ -79,6 +81,14 @@ struct SettingsView: View {
                     #if DEBUG
                     NavigationLink("Usage Dashboard") {
                         UsageDashboardView(tracker: usageTracker)
+                    }
+
+                    Button {
+                        Task {
+                            await authViewModel.testRefreshToken()
+                        }
+                    } label: {
+                        Label("Test Refresh Token", systemImage: "arrow.clockwise")
                     }
                     #endif
                 }
@@ -146,6 +156,7 @@ struct SettingsView: View {
     let appAttestService = AppAttestService()
     let creditsService = RemoteCreditsService(appAttestService: appAttestService)
     SettingsView(
+        authViewModel: .init(appAttestService: .init()),
         storeManager: StoreKitManager(creditsService: creditsService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),

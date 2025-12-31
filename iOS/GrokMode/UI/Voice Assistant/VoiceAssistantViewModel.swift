@@ -18,6 +18,7 @@ class VoiceAssistantViewModel: NSObject {
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
     var selectedServiceType: VoiceServiceType = .openai
+    var selectedVoice: VoiceOption = .coral
 
     // MARK: Session
     @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
@@ -93,7 +94,7 @@ class VoiceAssistantViewModel: NSObject {
             self.audioStreamer = nil
         }
 
-        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker)
+        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker, voice: selectedVoice)
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
@@ -616,22 +617,6 @@ class VoiceAssistantViewModel: NSObject {
     func logoutX() async {
         await authViewModel.logout()
     }
-
-    #if DEBUG
-    func testRefreshToken() async {
-        AppLogger.auth.info("Testing refresh token - forcing refresh by deleting access token...")
-
-        // Now call getValidAccessToken which will trigger refresh
-        guard let token = try? await authViewModel.authService.refreshAccessToken() else {
-            AppLogger.auth.error("Refresh failed - refresh token likely expired")
-            addSystemMessage("Refresh token test failed - you may need to re-login")
-            return
-        }
-
-        AppLogger.auth.info("Successfully refreshed access token")
-        addSystemMessage("Refresh token test passed - new token: \(token.prefix(20))...")
-    }
-    #endif
 }
 
 // MARK: AudioStreamerDelegate

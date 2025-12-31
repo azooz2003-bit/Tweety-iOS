@@ -7,6 +7,25 @@
 
 import Foundation
 
+/// Voice options for different services
+enum VoiceOption: String, CaseIterable, Identifiable {
+    // OpenAI voices
+    case alloy, ash, ballad, coral, echo, sage, shimmer, verse
+    // xAI voices
+    case ara = "Ara"
+    case rex = "Rex"
+    case sal = "Sal"
+    case eve = "Eve"
+    case una = "Una"
+    case leo = "Leo"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        rawValue.capitalized
+    }
+}
+
 /// Enumeration of available voice service providers
 enum VoiceServiceType: String, CaseIterable, Identifiable {
     case xai = "xAI"
@@ -39,13 +58,35 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Creates the appropriate voice service instance
-    func createService(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker) -> VoiceService {
+    /// Available voices for this service
+    var availableVoices: [VoiceOption] {
         switch self {
         case .xai:
-            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, sampleRate: .twentyFourKHz)
+            return [.ara, .rex, .sal, .eve, .una, .leo]
         case .openai:
-            return OpenAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker, sampleRate: 24000)
+            return [.alloy, .ash, .ballad, .coral, .echo, .sage, .shimmer, .verse]
+        }
+    }
+
+    /// Default voice for this service
+    var defaultVoice: VoiceOption {
+        switch self {
+        case .xai:
+            return .rex
+        case .openai:
+            return .coral
+        }
+    }
+
+    /// Creates the appropriate voice service instance
+    func createService(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: VoiceOption) -> VoiceService {
+        switch self {
+        case .xai:
+            let xaiVoice = XAIConversationEvent.SessionConfig.Voice(rawValue: voice.rawValue.capitalized) ?? .Rex
+            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, voice: xaiVoice, sampleRate: .twentyFourKHz)
+        case .openai:
+            let openAIVoice = OpenAIVoiceService.Voice(rawValue: voice.rawValue) ?? .coral
+            return OpenAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker, voice: openAIVoice, sampleRate: 24000)
         }
     }
 }

@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import OSLog
 
 @Observable
 final class AuthViewModel {
@@ -42,4 +43,18 @@ final class AuthViewModel {
     func getValidAccessToken() async -> String? {
         return await authService.getValidAccessToken()
     }
+
+    #if DEBUG
+    func testRefreshToken() async {
+        AppLogger.auth.info("Testing refresh token - forcing refresh by deleting access token...")
+
+        // Will trigger refresh
+        guard let _ = try? await authService.refreshAccessToken() else {
+            AppLogger.auth.error("Refresh failed - refresh token likely expired")
+            return
+        }
+
+        AppLogger.auth.info("Successfully refreshed access token")
+    }
+    #endif
 }

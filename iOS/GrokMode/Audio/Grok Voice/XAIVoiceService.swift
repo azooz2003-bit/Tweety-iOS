@@ -23,7 +23,7 @@ class XAIVoiceService: VoiceService {
     var requiredSampleRate: Int { sampleRate.rawValue }
 
     // Configuration
-    let voice = XAIConversationEvent.SessionConfig.Voice.Rex
+    let voice: XAIConversationEvent.SessionConfig.Voice
     var instructions = """
     You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
 
@@ -81,9 +81,10 @@ class XAIVoiceService: VoiceService {
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, voice: XAIConversationEvent.SessionConfig.Voice = .Rex, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
         self.sessionState = sessionState
         self.appAttestService = appAttestService
+        self.voice = voice
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
     }
