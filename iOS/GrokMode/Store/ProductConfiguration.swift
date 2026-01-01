@@ -38,7 +38,7 @@ enum ProductConfiguration {
             return product.creditsAmount
         }
 
-        // Handle dynamic one-time purchase IDs (com.grokmode.credits.{amount})
+        // Dynamic credits amount identification
         if productID.hasPrefix("com.grokmode.credits."),
            let amountString = productID.components(separatedBy: ".").last,
            let amount = Double(amountString) {

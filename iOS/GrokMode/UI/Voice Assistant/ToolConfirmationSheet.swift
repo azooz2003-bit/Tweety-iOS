@@ -101,6 +101,7 @@ struct ToolConfirmationSheet: View {
     }
 }
 
+/// Only for previews
 private struct ToolIconRow: View {
     let functionName: String
     let iconName: String

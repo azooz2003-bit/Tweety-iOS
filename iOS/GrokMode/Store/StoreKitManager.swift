@@ -157,7 +157,6 @@ final class StoreKitManager {
             do {
                 try await syncTransactionsBatch(unfinishedTransactions)
 
-                // Finish all transactions after successful sync
                 for transaction in unfinishedTransactions {
                     await transaction.finish()
                     AppLogger.store.info("Finished transaction: \(transaction.id)")
@@ -185,7 +184,6 @@ final class StoreKitManager {
 
         AppLogger.store.info("Observer handling transaction: \(transaction.productID), ID: \(transaction.id)")
 
-        // Sync with server - only finish if successful
         do {
             try await syncTransaction(transaction)
             await transaction.finish()
@@ -199,7 +197,6 @@ final class StoreKitManager {
     }
 
     private func syncTransaction(_ transaction: Transaction) async throws {
-        // Use batch sync for single transaction (server accepts arrays)
         try await syncTransactionsBatch([transaction])
     }
 

@@ -213,7 +213,14 @@ struct VoiceAssistantView: View {
                 }
             }
             .listStyle(.plain)
-            .onChange(of: viewModel.conversationItems.count) { _, _ in }
+            .onChange(of: viewModel.conversationItems.count) { _, _ in
+                guard let lastId = viewModel.conversationItems.last?.id else { return }
+
+                withAnimation {
+                    scrollProxy.scrollTo(lastId)
+                }
+
+            }
         }
     }
 

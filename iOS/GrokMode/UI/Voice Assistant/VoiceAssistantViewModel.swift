@@ -605,11 +605,7 @@ class VoiceAssistantViewModel: NSObject {
             return
         }
 
-        // Enrich each tweet with related data and add to conversation
-        tweets.forEach { tweet in
-            let enrichedTweet = EnrichedTweet(from: tweet, includes: tweetResponse.includes)
-            addConversationItem(.tweet(enrichedTweet))
-        }
+        addConversationItem(.tweets(tweets.map { EnrichedTweet(from: $0, includes: tweetResponse.includes) }))
     }
 
     // MARK: - X Auth

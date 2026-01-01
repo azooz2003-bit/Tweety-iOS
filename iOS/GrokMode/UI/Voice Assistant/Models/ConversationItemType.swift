@@ -11,6 +11,7 @@ enum ConversationItemType {
     case userSpeech(transcript: String)
     case assistantSpeech(text: String)
     case tweet(EnrichedTweet)
+    case tweets([EnrichedTweet])
     case toolCall(name: String, status: ToolCallStatus)
     case systemMessage(String)
 }
