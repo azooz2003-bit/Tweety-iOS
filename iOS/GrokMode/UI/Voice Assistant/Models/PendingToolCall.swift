@@ -13,4 +13,8 @@ struct PendingToolCall: Identifiable {
     let arguments: String
     let previewTitle: String
     let previewContent: String
+
+    var actionIcon: String {
+        XTool(rawValue: functionName)?.actionIcon ?? "hand.raised.fill"
+    }
 }
