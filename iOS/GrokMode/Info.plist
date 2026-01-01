@@ -33,5 +33,7 @@
 	<string>$(X_API_KEY)</string>
 	<key>X_CLIENT_ID</key>
 	<string>$(X_CLIENT_ID)</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>(debug) Saving waveform UI to photo album. Accept this permission to proceed.</string>
 </dict>
 </plist>
