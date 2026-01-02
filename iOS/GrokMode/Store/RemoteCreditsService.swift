@@ -15,10 +15,11 @@ actor RemoteCreditsService {
         self.appAttestService = appAttestService
     }
 
-    func syncTransactions(_ transactions: [TransactionSyncRequest]) async throws -> TransactionSyncResponse {
+    func syncTransactions(_ transactions: [TransactionSyncRequest], userId: String) async throws -> TransactionSyncResponse {
         var request = URLRequest(url: Config.transactionSyncURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
         let requestBody = ["transactions": transactions]
         request.httpBody = try JSONEncoder().encode(requestBody)
@@ -63,8 +64,9 @@ actor RemoteCreditsService {
         var request = URLRequest(url: Config.usageTrackURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
-        let requestBody = UsageTrackRequest(userId: userId, service: service, usage: usage)
+        let requestBody = UsageTrackRequestBody(service: service, usage: usage)
         request.httpBody = try JSONEncoder().encode(requestBody)
 
         try await request.addAppAttestHeaders(appAttestService: appAttestService)
@@ -89,15 +91,9 @@ actor RemoteCreditsService {
     }
 
     func getBalance(userId: String) async throws -> CreditBalance {
-        var urlComponents = URLComponents(url: Config.balanceURL, resolvingAgainstBaseURL: false)!
-        urlComponents.queryItems = [URLQueryItem(name: "userId", value: userId)]
-
-        guard let url = urlComponents.url else {
-            throw CreditsServiceError.invalidResponse
-        }
-
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: Config.balanceURL)
         request.httpMethod = "GET"
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
         try await request.addAppAttestHeaders(appAttestService: appAttestService)
 

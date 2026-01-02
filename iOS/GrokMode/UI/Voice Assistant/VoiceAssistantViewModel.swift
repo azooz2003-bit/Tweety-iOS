@@ -11,14 +11,34 @@ import Combine
 import OSLog
 
 @Observable
-class VoiceAssistantViewModel: NSObject {
+class VoiceAssistantViewModel {
+    enum UserDefaultsKey {
+        static let selectedVoiceService = "com.tweety.selectedVoiceService"
+        static let selectedVoice = "com.tweety.selectedVoice"
+    }
     // MARK: State
     var micPermission: MicPermissionState = .checking
     var voiceSessionState: VoiceSessionState = .disconnected
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
-    var selectedServiceType: VoiceServiceType = .openai
-    var selectedVoice: VoiceOption = .coral
+    var selectedServiceType: VoiceServiceType = {
+        guard let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService), let serviceType = VoiceServiceType(rawValue: serviceStr)
+            else { return .openai }
+        return serviceType
+    }() {
+        didSet {
+            UserDefaults.standard.set(selectedServiceType.rawValue, forKey: UserDefaultsKey.selectedVoiceService)
+        }
+    }
+    var selectedVoice: VoiceOption = {
+        guard let voiceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoice), let voiceType = VoiceOption(rawValue: voiceStr)
+            else { return .coral }
+        return voiceType
+    }() {
+        didSet {
+            UserDefaults.standard.set(selectedVoice.rawValue, forKey: UserDefaultsKey.selectedVoice)
+        }
+    }
 
     // MARK: Session
     @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
@@ -59,7 +79,6 @@ class VoiceAssistantViewModel: NSObject {
         self.creditsService = creditsService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
-        super.init()
         checkPermissions()
     }
 
@@ -94,7 +113,7 @@ class VoiceAssistantViewModel: NSObject {
             self.audioStreamer = nil
         }
 
-        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker, voice: selectedVoice)
+        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker, voice: selectedVoice)
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
@@ -214,7 +233,7 @@ class VoiceAssistantViewModel: NSObject {
 
             // Check balance before starting
             do {
-                let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+                let userId = try await authViewModel.authService.requiredUserId
 
                 let balance = try await creditsService.getBalance(userId: userId)
 
@@ -264,7 +283,7 @@ class VoiceAssistantViewModel: NSObject {
                         // Register usage with server
                         Task { @MainActor in
                             do {
-                                let userId = try await self.storeManager.getOrCreateAppAccountToken().uuidString
+                                let userId = try await self.authViewModel.authService.requiredUserId
                                 let result = await self.usageTracker.trackAndRegisterXAIUsage(
                                     minutes: 1.0,
                                     userId: userId
@@ -327,7 +346,7 @@ class VoiceAssistantViewModel: NSObject {
             // Register partial minute with server
             Task { @MainActor in
                 do {
-                    let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+                    let userId = try await authViewModel.authService.requiredUserId
                     let minutes = remainingSeconds / 60.0
                     _ = await usageTracker.trackAndRegisterXAIUsage(
                         minutes: minutes,

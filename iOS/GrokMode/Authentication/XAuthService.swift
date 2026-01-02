@@ -11,14 +11,12 @@ import CommonCrypto
 import Combine
 internal import os
 
-// MARK: - Auth Presentation Provider
 final class AuthPresentationProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         return ASPresentationAnchor()
     }
 }
 
-// MARK: - Auth Error
 enum AuthError: Error, Sendable {
     // Configuration/Programming errors
     case missingClientID
@@ -30,29 +28,48 @@ enum AuthError: Error, Sendable {
     case networkError(String)
 }
 
-// MARK: - Auth State
 nonisolated
 struct AuthState: Sendable {
     public let isAuthenticated: Bool
+    public let userId: String?
     public let currentUserHandle: String?
 
-    public init(isAuthenticated: Bool, currentUserHandle: String?) {
+    public init(isAuthenticated: Bool, userId: String? = nil, currentUserHandle: String? = nil) {
         self.isAuthenticated = isAuthenticated
+        self.userId = userId
         self.currentUserHandle = currentUserHandle
     }
 }
 
-// MARK: - XAuthService
 public actor XAuthService {
+    private struct TwitterUserResponse: Codable {
+        let data: TwitterUser
+    }
 
-    private(set) var authState = AuthState(isAuthenticated: false, currentUserHandle: nil) {
+    private struct TwitterUser: Codable {
+        let id: String
+        let username: String
+    }
+
+    private(set) var authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil) {
         didSet {
             stateContinuation.yield(authState)
         }
     }
 
     var isAuthenticated: Bool { authState.isAuthenticated }
+    var userId: String? { authState.userId }
     var currentUserHandle: String? { authState.currentUserHandle }
+
+    /// Get the current user ID, throwing if not authenticated
+    var requiredUserId: String {
+        get throws {
+            guard let userId = authState.userId else {
+                throw AuthError.loginFailed("User not authenticated")
+            }
+            return userId
+        }
+    }
 
     private let callbackScheme = "grokmode"
     @MainActor private var authSession: ASWebAuthenticationSession?
@@ -70,6 +87,7 @@ public actor XAuthService {
     private let tokenKey = "x_user_access_token"
     private let refreshTokenKey = "x_user_refresh_token"
     private let handleKey = "x_user_handle"
+    private let userIdKey = "x_user_id"
     private let tokenExpiryKey = "x_token_expiry_date"
 
     /// URL to exchange auth code for refresh & access token
@@ -95,10 +113,11 @@ public actor XAuthService {
         if let token = await keychain.getString(for: tokenKey), !token.isEmpty {
             authState = AuthState(
                 isAuthenticated: true,
+                userId: await keychain.getString(for: userIdKey),
                 currentUserHandle: await keychain.getString(for: handleKey)
             )
         } else {
-            authState = AuthState(isAuthenticated: false, currentUserHandle: nil)
+            authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
         }
     }
 
@@ -263,19 +282,16 @@ public actor XAuthService {
             let refreshToken = json["refresh_token"] as? String
             let expiresIn = json["expires_in"] as? Int ?? 7200
 
-            // Calculate expiry date
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
 
-            // Save Token to Keychain
-            try? await keychain.save(accessToken, for: self.tokenKey)
-            try? await keychain.save(expiryDate, for: self.tokenExpiryKey)
+            try await keychain.save(accessToken, for: self.tokenKey)
+            try await keychain.save(expiryDate, for: self.tokenExpiryKey)
             if let rt = refreshToken {
-                try? await keychain.save(rt, for: self.refreshTokenKey)
+                try await keychain.save(rt, for: self.refreshTokenKey)
             }
-            authState = AuthState(isAuthenticated: true, currentUserHandle: authState.currentUserHandle)
 
-            // Fetch user info (non-critical, don't throw if it fails)
-            await fetchCurrentUser()
+            // This sets authState with isAuthenticated=true + userId atomically
+            try await fetchCurrentUser()
         } catch let error as AuthError {
             throw error
         } catch {
@@ -283,37 +299,43 @@ public actor XAuthService {
         }
     }
 
-    private func fetchCurrentUser() async {
-        // Non-critical - silently fail if we can't get user info
-        guard let token = await keychain.getString(for: tokenKey) else { return }
+    private func fetchCurrentUser() async throws {
+        // CRITICAL - must succeed to get X user_id for credits system
+        guard let token = await keychain.getString(for: tokenKey) else {
+            throw AuthError.loginFailed("No access token available")
+        }
 
         let url = URL(string: "https://api.twitter.com/2/users/me")!
         var request = URLRequest(url: url)
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let dataObj = json["data"] as? [String: Any],
-                  let username = dataObj["username"] as? String else {
-                return  // Silently fail - we're still authenticated
-            }
-
-            let handle = "@\(username)"
-            try? await keychain.save(handle, for: self.handleKey)
-            authState = AuthState(isAuthenticated: authState.isAuthenticated, currentUserHandle: handle)
-        } catch {
-            // Silently fail - user info is non-critical
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw AuthError.loginFailed("Failed to fetch user info")
         }
+
+        let userResponse = try JSONDecoder().decode(TwitterUserResponse.self, from: data)
+        let user = userResponse.data
+
+        // Store both user_id (permanent) and username (display) in Keychain
+        try await keychain.save(user.id, for: self.userIdKey)
+        try await keychain.save(user.username, for: self.handleKey)
+
+        authState = AuthState(
+            isAuthenticated: true,
+            userId: user.id,
+            currentUserHandle: user.username
+        )
     }
 
     public func logout() async {
         await keychain.delete(tokenKey)
         await keychain.delete(refreshTokenKey)
         await keychain.delete(handleKey)
+        await keychain.delete(userIdKey)
         await keychain.delete(tokenExpiryKey)
-        authState = AuthState(isAuthenticated: false, currentUserHandle: nil)
+        authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
     }
 
     public func getAccessToken() async -> String? {

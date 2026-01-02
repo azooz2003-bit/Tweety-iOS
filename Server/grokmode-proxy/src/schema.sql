@@ -2,7 +2,7 @@
 -- For Cloudflare D1 (SQLite)
 
 -- Users table (tracks total credits spent)
--- user_id is the appAccountToken (UUID) from StoreKit 2
+-- user_id is the X (Twitter) user ID sent via X-User-Id header
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT UNIQUE NOT NULL,

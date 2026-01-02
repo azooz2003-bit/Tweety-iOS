@@ -24,7 +24,6 @@ struct CreditBalance: Codable {
 
 nonisolated
 struct TransactionSyncRequest: Codable {
-    let appAccountToken: String
     let transactionId: String
     let originalTransactionId: String
     let productId: String
@@ -36,7 +35,6 @@ struct TransactionSyncRequest: Codable {
     let ownershipType: String?
 
     enum CodingKeys: String, CodingKey {
-        case appAccountToken = "app_account_token"
         case transactionId = "transaction_id"
         case originalTransactionId = "original_transaction_id"
         case productId = "product_id"
@@ -73,8 +71,7 @@ struct TransactionSyncResponse: Codable {
 }
 
 nonisolated
-struct UsageTrackRequest: Codable {
-    let userId: String
+struct UsageTrackRequestBody: Codable {
     let service: String
     let usage: UsageDetails
 }

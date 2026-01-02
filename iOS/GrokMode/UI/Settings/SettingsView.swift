@@ -20,7 +20,7 @@ struct SettingsView: View {
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.onLogout = onLogout
-        self._viewModel = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService))
+        self._viewModel = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService, authService: authViewModel.authService))
     }
 
     var body: some View {
@@ -155,9 +155,10 @@ struct SettingsView: View {
 #Preview {
     let appAttestService = AppAttestService()
     let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+    let authViewModel = AuthViewModel(appAttestService: .init())
     SettingsView(
-        authViewModel: .init(appAttestService: .init()),
-        storeManager: StoreKitManager(creditsService: creditsService),
+        authViewModel: authViewModel,
+        storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
         onLogout: {}

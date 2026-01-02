@@ -1,5 +1,4 @@
 export interface AppleTransaction {
-	app_account_token: string;  // UUID that acts as user_id
 	transaction_id: string;
 	original_transaction_id: string;
 	product_id: string;

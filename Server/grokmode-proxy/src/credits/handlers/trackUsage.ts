@@ -12,15 +12,24 @@ export async function trackUsage(request: Request, env: Env): Promise<Response> 
 	}
 
 	try {
+		// Get userId from X-User-Id header
+		const userId = request.headers.get('X-User-Id');
+
+		if (!userId) {
+			return new Response(
+				JSON.stringify({ error: 'Missing X-User-Id header' }),
+				{ status: 400, headers: { 'Content-Type': 'application/json' } }
+			);
+		}
+
 		const body = await request.json() as {
-			userId: string;
 			service: string;
 			usage: UsageData;
 		};
 
-		const { userId, service, usage } = body;
+		const { service, usage } = body;
 
-		if (!userId || !service || !usage) {
+		if (!service || !usage) {
 			return new Response(
 				JSON.stringify({ error: 'Missing required fields' }),
 				{ status: 400, headers: { 'Content-Type': 'application/json' } }

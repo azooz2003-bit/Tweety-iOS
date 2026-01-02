@@ -82,6 +82,7 @@ class OpenAIVoiceService: VoiceService {
     private var currentAudioDurationMs: Int = 0
 
     private let appAttestService: AppAttestService
+    private let authService: XAuthService
     private let storeManager: StoreKitManager
     private let usageTracker: UsageTracker
 
@@ -91,9 +92,10 @@ class OpenAIVoiceService: VoiceService {
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: Voice = .coral, sampleRate: Int = 24000) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: Voice = .coral, sampleRate: Int = 24000) {
         self.sessionState = sessionState
         self.appAttestService = appAttestService
+        self.authService = authService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.voice = voice
@@ -607,7 +609,7 @@ class OpenAIVoiceService: VoiceService {
 
                 Task { @MainActor in
                     do {
-                        let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+                        let userId = try await authService.requiredUserId
                         let result = await usageTracker.trackAndRegisterOpenAIUsage(
                             audioInputTokens: audioInputTokens,
                             audioOutputTokens: audioOutputTokens,

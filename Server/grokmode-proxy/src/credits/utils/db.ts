@@ -24,10 +24,10 @@ export async function getRemainingCredits(userId: string, env: Env): Promise<Cre
 	};
 }
 
-export async function isTransactionProcessed(transactionId: string, env: Env): Promise<boolean> {
+export async function isTransactionProcessed(transactionId: string, userId: string, env: Env): Promise<boolean> {
 	const result = await env.tweety_credits.prepare(
-		'SELECT id FROM receipts WHERE transaction_id = ?'
-	).bind(transactionId).first();
+		'SELECT id FROM receipts WHERE transaction_id = ? AND user_id = ?'
+	).bind(transactionId, userId).first();
 
 	return result !== null;
 }

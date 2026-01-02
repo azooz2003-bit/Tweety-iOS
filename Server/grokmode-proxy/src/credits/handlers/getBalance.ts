@@ -10,12 +10,12 @@ export async function getBalance(request: Request, env: Env): Promise<Response> 
 	}
 
 	try {
-		const url = new URL(request.url);
-		const userId = url.searchParams.get('userId');
+		// Get userId from X-User-Id header
+		const userId = request.headers.get('X-User-Id');
 
 		if (!userId) {
 			return new Response(
-				JSON.stringify({ error: 'Missing userId parameter' }),
+				JSON.stringify({ error: 'Missing X-User-Id header' }),
 				{ status: 400, headers: { 'Content-Type': 'application/json' } }
 			);
 		}

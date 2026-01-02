@@ -30,12 +30,12 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 			);
 		}
 
-		// Get user_id from appAccountToken (same for all transactions)
-		const userId = transactions[0].app_account_token;
+		// Get user_id from X-User-Id header
+		const userId = request.headers.get('X-User-Id');
 
 		if (!userId) {
 			return new Response(
-				JSON.stringify({ error: 'Missing appAccountToken' }),
+				JSON.stringify({ error: 'Missing X-User-Id header' }),
 				{ status: 400, headers: { 'Content-Type': 'application/json' } }
 			);
 		}
@@ -70,6 +70,7 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 		for (const transaction of sortedTransactions) {
 			const alreadyProcessed = await isTransactionProcessed(
 				transaction.transaction_id,
+				userId,
 				env
 			);
 
@@ -147,7 +148,7 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 						classification.notes
 					).run();
 
-					const inserted = await isTransactionProcessed(transaction.transaction_id, env);
+					const inserted = await isTransactionProcessed(transaction.transaction_id, userId, env);
 					if (inserted) {
 						newCreditsAdded += creditsAmount;
 						processedCount++;

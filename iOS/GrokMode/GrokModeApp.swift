@@ -21,8 +21,9 @@ struct GrokModeApp: App {
     init() {
         self.appAttestService = AppAttestService()
         self.creditsService = RemoteCreditsService(appAttestService: appAttestService)
-        self._authViewModel = State(initialValue: AuthViewModel(appAttestService: appAttestService))
-        self._storeManager = State(initialValue: StoreKitManager(creditsService: creditsService))
+        let authVM = AuthViewModel(appAttestService: appAttestService)
+        self._authViewModel = State(initialValue: authVM)
+        self._storeManager = State(initialValue: StoreKitManager(creditsService: creditsService, authService: authVM.authService))
         self._usageTracker = State(initialValue: UsageTracker(creditsService: creditsService))
     }
 

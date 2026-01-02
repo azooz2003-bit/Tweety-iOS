@@ -12,9 +12,7 @@ internal import os
 @Observable
 final class StoreKitManager {
     private let creditsService: RemoteCreditsService
-    private let appAccountTokenKey = "app_account_token"
-    private let iCloudStore = NSUbiquitousKeyValueStore.default
-    private var appAccountToken: UUID?
+    private let authService: XAuthService
 
     private var transactionObserverTask: Task<Void, Never>?
     private var restoreTask: Task<Void, Never>?
@@ -23,45 +21,11 @@ final class StoreKitManager {
     var activeSubscriptions: [Product] = []
     var creditBalance: CreditBalance?
 
-    init(creditsService: RemoteCreditsService) {
+    init(creditsService: RemoteCreditsService, authService: XAuthService) {
         self.creditsService = creditsService
+        self.authService = authService
     }
 
-    func getOrCreateAppAccountToken() async -> UUID {
-        if let appAccountToken {
-            AppLogger.store.info("Retrieved appAccountToken from memory")
-            return appAccountToken
-        }
-        
-        // Check iCloud (source of truth - tied to Apple ID)
-        if let iCloudUUID = iCloudStore.string(forKey: appAccountTokenKey),
-           let uuid = UUID(uuidString: iCloudUUID) {
-            self.appAccountToken = uuid
-            AppLogger.store.info("Retrieved appAccountToken from iCloud")
-            return uuid
-        }
-
-        // Check historical transactions (migration from old purchases)
-        for await verificationResult in Transaction.all {
-            if case .verified(let transaction) = verificationResult,
-               let appAccountToken = transaction.appAccountToken {
-                AppLogger.store.info("Found appAccountToken from historical transaction: \(transaction.productID)")
-                // Save to iCloud for future use
-                iCloudStore.set(appAccountToken.uuidString, forKey: appAccountTokenKey)
-                iCloudStore.synchronize()
-                self.appAccountToken = appAccountToken
-                return appAccountToken
-            }
-        }
-
-        // Generate new user_id (first-time user)
-        let newUUID = UUID()
-        iCloudStore.set(newUUID.uuidString, forKey: appAccountTokenKey)
-        iCloudStore.synchronize()
-        self.appAccountToken = newUUID
-        AppLogger.store.info("Generated new appAccountToken for first-time user")
-        return newUUID
-    }
 
     func loadProducts() async throws {
         AppLogger.store.info("Loading products from App Store")
@@ -77,11 +41,13 @@ final class StoreKitManager {
     func purchase(_ product: Product) async throws -> Transaction {
         AppLogger.store.info("Initiating purchase for product: \(product.id)")
 
-        let appAccountToken = await getOrCreateAppAccountToken()
+        // Ensure user is authenticated with X before allowing purchase
+        guard await authService.userId != nil else {
+            AppLogger.store.error("Cannot purchase - user not authenticated with X")
+            throw StoreError.notAuthenticated
+        }
 
-        let result = try await product.purchase(options: [
-            .appAccountToken(appAccountToken)
-        ])
+        let result = try await product.purchase()
 
         switch result {
         case .success(let verificationResult):
@@ -213,11 +179,16 @@ final class StoreKitManager {
     private func syncTransactionsBatch(_ transactions: [Transaction]) async throws {
         guard !transactions.isEmpty else { return }
 
-        let appAccountToken = await getOrCreateAppAccountToken()
+        // CRITICAL: Only sync transactions if user is authenticated with X
+        // This prevents User A's purchases from being credited to User B
+        guard let userId = await authService.userId else {
+            AppLogger.store.error("Cannot sync transactions - user not authenticated with X")
+            throw StoreError.notAuthenticated
+        }
 
-        let requests = transactions.map { $0.toSyncRequest(appAccountToken: appAccountToken) }
+        let requests = transactions.map { $0.toSyncRequest() }
 
-        let response = try await creditsService.syncTransactions(requests)
+        let response = try await creditsService.syncTransactions(requests, userId: userId)
 
         self.creditBalance = CreditBalance(
             userId: response.userId,
@@ -268,6 +239,7 @@ enum StoreError: Error, LocalizedError {
     case failedVerification
     case pending
     case userCancelled
+    case notAuthenticated
     case unknown
 
     var errorDescription: String? {
@@ -278,6 +250,8 @@ enum StoreError: Error, LocalizedError {
             return "Purchase is pending approval"
         case .userCancelled:
             return "Purchase was cancelled"
+        case .notAuthenticated:
+            return "Please log in with X to make purchases"
         case .unknown:
             return "An unknown error occurred"
         }

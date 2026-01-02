@@ -18,9 +18,9 @@ extension Date {
 
 extension Transaction {
     /// Convert StoreKit Transaction to TransactionSyncRequest
-    func toSyncRequest(appAccountToken: UUID) -> TransactionSyncRequest {
+    /// User ID is sent via X-User-Id header instead of in the request body
+    func toSyncRequest() -> TransactionSyncRequest {
         TransactionSyncRequest(
-            appAccountToken: appAccountToken.uuidString,
             transactionId: String(id),
             originalTransactionId: String(originalID),
             productId: productID,

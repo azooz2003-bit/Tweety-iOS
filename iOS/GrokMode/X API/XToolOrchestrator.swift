@@ -876,7 +876,7 @@ actor XToolOrchestrator {
 
         // Register usage with server if operation was determined
         if let operation = operation {
-            let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+            let userId = try await authService.requiredUserId
             let result = await usageTracker.trackAndRegisterXAPIUsage(
                 operation: operation,
                 count: count,

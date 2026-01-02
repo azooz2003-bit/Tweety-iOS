@@ -285,7 +285,7 @@ struct VoiceAssistantView: View {
     VoiceAssistantView(
         authViewModel: authViewModel,
         appAttestService: appAttestService,
-        storeManager: StoreKitManager(creditsService: creditsService),
+        storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
         imageCache: ImageCache()

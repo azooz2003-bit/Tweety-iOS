@@ -27,10 +27,12 @@ final class StoreViewModel {
 
     private let storeManager: StoreKitManager
     private let creditsService: RemoteCreditsService
+    private let authService: XAuthService
 
-    init(storeManager: StoreKitManager, creditsService: RemoteCreditsService) {
+    init(storeManager: StoreKitManager, creditsService: RemoteCreditsService, authService: XAuthService) {
         self.storeManager = storeManager
         self.creditsService = creditsService
+        self.authService = authService
     }
 
     var subscriptionProducts: [Product] {
@@ -45,7 +47,7 @@ final class StoreViewModel {
         do {
             try await storeManager.loadProducts()
 
-            let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+            let userId = try await authService.requiredUserId
             self.creditBalance = try await creditsService.getBalance(userId: userId)
         } catch {
             self.errorMessage = "Failed to load products: \(error.localizedDescription)"
@@ -61,7 +63,7 @@ final class StoreViewModel {
         do {
             _ = try await storeManager.purchase(product)
 
-            let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+            let userId = try await authService.requiredUserId
             self.creditBalance = try await creditsService.getBalance(userId: userId)
         } catch StoreError.userCancelled {
             AppLogger.store.info("User cancelled purchase")
@@ -79,7 +81,7 @@ final class StoreViewModel {
         do {
             await storeManager.restoreAllTransactions()
 
-            let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+            let userId = try await authService.requiredUserId
             self.creditBalance = try await creditsService.getBalance(userId: userId)
 
             AppLogger.store.info("Restore purchases completed - balance and subscriptions refreshed")
