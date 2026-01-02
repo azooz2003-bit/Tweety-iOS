@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "BillyBob.png",
+      "filename" : "Tweety (Smiling) (Light)-iOS-Default-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "BillyBob 1.png",
+      "filename" : "Tweety (Smiling) (Dark)-iOS-Default-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "BillyBob 2.png",
+      "filename" : "Tweety (Smiling) (Light)-iOS-TintedLight-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
