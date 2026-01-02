@@ -11,6 +11,8 @@ export interface Env {
     ATTEST_STORE: KVNamespace;
     TEAM_ID: string;
     BUNDLE_ID: string;
+    PRE_LOGIN_RATE_LIMIT: any;
+    POST_LOGIN_RATE_LIMIT: any;
     tweety_credits: D1Database;
 }
 
@@ -52,10 +54,37 @@ async function createClientDataHash(request: Request): Promise<string> {
     return hashBase64;
 }
 
+function makeLimiterKey(pathname: string, sourceId: string): string {
+    return sourceId.concat(".").concat(pathname)
+}
+
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext):
 Promise<Response> {
         const url = new URL(request.url);
+
+        const ipRateLimitedPaths = ['/attest/challenge', '/attest/verify', '/x/oauth2/token']
+
+        if (ipRateLimitedPaths.includes(url.pathname)) {
+            const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+            if (ip === "unknown") {
+                return new Response(`429 Failure – could not check rate limit`, { status: 429 })
+            }
+            const { success } = await env.PRE_LOGIN_RATE_LIMIT.limit({ key: makeLimiterKey(url.pathname, ip) })
+            if (!success) {
+                return new Response(`429 Failure – rate limit exceeded for ${url.pathname}`, { status: 429 })
+            }
+        } else {
+            // Rate limit all other endpoints by user ID
+            const userId = request.headers.get('X-User-Id');
+            if (!userId) {
+                return new Response('Missing X-User-Id header', { status: 401 })
+            }
+            const { success } = await env.POST_LOGIN_RATE_LIMIT.limit({ key: makeLimiterKey(url.pathname, userId) })
+            if (!success) {
+                return new Response(`429 Failure – rate limit exceeded for ${url.pathname}`, { status: 429 })
+            }
+        }
 
         if (url.pathname === '/attest/challenge') {
             const challenge = generateChallenge();
