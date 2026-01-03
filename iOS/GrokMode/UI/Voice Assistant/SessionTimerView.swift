@@ -14,6 +14,14 @@ struct SessionTimerView: View {
     @State private var currentTime = Date()
     @State private var timer: Timer?
 
+    let formatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.minute, .second]
+        formatter.zeroFormattingBehavior = .pad
+        formatter.unitsStyle = .positional
+        return formatter
+    }()
+
     var body: some View {
         Text(formattedDuration)
             .font(.caption)
@@ -32,14 +40,10 @@ struct SessionTimerView: View {
 
     private var formattedDuration: String {
         guard let startTime = sessionStartTime else {
-            return "0:00"
+            return formatter.string(from: 0) ?? "0:00"
         }
 
         let elapsed = currentTime.timeIntervalSince(startTime)
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.zeroFormattingBehavior = .pad
-        formatter.unitsStyle = .positional
         return formatter.string(from: elapsed) ?? "0:00"
     }
 

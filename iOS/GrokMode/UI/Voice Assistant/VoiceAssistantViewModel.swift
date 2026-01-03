@@ -42,9 +42,10 @@ class VoiceAssistantViewModel {
 
     // MARK: Session
     @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
-    @ObservationIgnored var sessionStartTime: Date? // Exposed for timer view to observe
+    @ObservationIgnored var sessionStartTime: Date?
     private var sessionTimer: Timer?
-    private var trackedMinutes: Int = 0 // Number of complete minutes already tracked
+    /// Number of completed minutes already tracked
+    private var trackedMinutes: Int = 0
     /// For serializing sessions start and stops
     private var sessionStartStopTask: Task<Void, Never>?
 
@@ -280,7 +281,6 @@ class VoiceAssistantViewModel {
                     if currentMinute > self.trackedMinutes {
                         self.trackedMinutes = currentMinute
 
-                        // Register usage with server
                         Task { @MainActor in
                             do {
                                 let userId = try await self.authViewModel.authService.requiredUserId
@@ -307,7 +307,6 @@ class VoiceAssistantViewModel {
 
             guard !Task.isCancelled else { return }
 
-            // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
             audioStreamer?.startStreamingAsync { [weak self] error in
                 if let error = error {
                     DispatchQueue.main.async {
