@@ -29,7 +29,7 @@ struct RootView: View {
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
-                LoginView(authViewModel: authViewModel)
+                AuthenticationView(authViewModel: authViewModel)
                     .transition(.opacity.combined(with: .scale(scale: 1.05)))
             }
         }
