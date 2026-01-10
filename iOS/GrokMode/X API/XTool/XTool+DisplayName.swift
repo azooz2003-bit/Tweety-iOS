@@ -83,6 +83,7 @@ extension XTool {
         case .sendDMToParticipant: return "Send DM"
         case .getDMEvents: return "Get DM Events"
         case .getConversationDMs: return "Get Conversation DMs"
+        case .getConversationDMsByParticipant: return "Get Conversation with User"
         case .deleteDMEvent: return "Delete DM"
         case .getDMEventDetails: return "Get DM Details"
 

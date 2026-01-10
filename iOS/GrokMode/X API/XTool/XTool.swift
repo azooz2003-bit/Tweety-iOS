@@ -88,6 +88,7 @@ enum XTool: String, CaseIterable, Identifiable {
     case sendDMToParticipant = "send_dm_to_participant"
     case getDMEvents = "get_dm_events"
     case getConversationDMs = "get_conversation_dms"
+    case getConversationDMsByParticipant = "get_conversation_dms_by_participant"
     case deleteDMEvent = "delete_dm_event"
     case getDMEventDetails = "get_dm_event_details"
 
@@ -198,8 +199,9 @@ enum XTool: String, CaseIterable, Identifiable {
         case .createDMConversation: return "Create a new DM conversation"
         case .sendDMToConversation: return "Send a DM to a conversation"
         case .sendDMToParticipant: return "Send a DM by participant ID"
-        case .getDMEvents: return "Get recent DM events"
-        case .getConversationDMs: return "Get messages for a conversation"
+        case .getDMEvents: return "Get ALL recent DM events across ALL conversations. Use this for general inbox view, NOT for specific conversations with a user."
+        case .getConversationDMs: return "Get messages for a specific conversation by conversation ID. Only use if you already have the conversation ID."
+        case .getConversationDMsByParticipant: return "Get the ENTIRE conversation (all messages) with a specific user by their user ID. USE THIS to fetch DM history with a specific person. This is the PRIMARY tool for retrieving conversation history between the authenticated user and another user."
         case .deleteDMEvent: return "Delete a DM event"
         case .getDMEventDetails: return "Get DM event details"
 
@@ -847,11 +849,22 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "Conversation ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "event_types": .string(description: "Comma-separated event types"),
-                    "pagination_token": .string(description: "Token to retrieve the next page of results. Use the value from 'meta.next_token' in the previous response."),
+                    "max_results": .integer(description: "Maximum results per page", minimum: 1, maximum: 100),
+                    "event_types": .array(description: "Types of DM events to include. Defaults to all types.", items: .string(enum: ["MessageCreate", "ParticipantsJoin", "ParticipantsLeave"])),
+                    "pagination_token": .string(description: "Pagination token to retrieve the next page of results. Use the value from 'meta.next_token' in the previous response. This tool supports pagination."),
                 ],
                 required: ["id"]
+            )
+
+        case .getConversationDMsByParticipant:
+            return .object(
+                properties: [
+                    "participant_id": .string(description: "The user ID of the other participant in the 1-on-1 conversation. This is the user you want to see the DM conversation with. NOT the authenticated user's ID."),
+                    "max_results": .integer(description: "Maximum results per page", minimum: 1, maximum: 100),
+                    "event_types": .array(description: "Types of DM events to include. Defaults to all types.", items: .string(enum: ["MessageCreate", "ParticipantsJoin", "ParticipantsLeave"])),
+                    "pagination_token": .string(description: "Pagination token to retrieve the next page of results. Use the value from 'meta.next_token' in the previous response. This tool SUPPORTS PAGINATION - use pagination_token to fetch additional pages of the conversation."),
+                ],
+                required: ["participant_id"]
             )
 
         case .deleteDMEvent:

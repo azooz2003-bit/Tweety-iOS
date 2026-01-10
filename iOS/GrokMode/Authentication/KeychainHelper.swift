@@ -6,6 +6,7 @@
 import Foundation
 import Security
 
+nonisolated
 final class KeychainHelper {
     static let shared = KeychainHelper()
 

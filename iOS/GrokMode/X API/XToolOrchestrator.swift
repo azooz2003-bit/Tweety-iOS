@@ -45,6 +45,13 @@ actor XToolOrchestrator {
     }
 
     private func executeToolWithRetry(_ tool: XTool, parameters: [String: Any], id: String?, attempt: Int) async -> XToolCallResult {
+        // Log if this is a pagination request
+        if let paginationToken = parameters["pagination_token"] as? String {
+            AppLogger.tools.info("PAGINATION: Agent calling \(tool.name) with pagination_token")
+            AppLogger.tools.info("PAGINATION: Pagination token = \(paginationToken)")
+            AppLogger.tools.info("PAGINATION: All parameters = \(parameters)")
+        }
+
         do {
             let request = try await buildRequest(for: tool, parameters: parameters)
 
@@ -76,7 +83,7 @@ actor XToolOrchestrator {
 
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
-                let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name)
+                let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name, originalParameters: parameters)
 
                 do {
                     try await trackXAPIUsage(for: tool, responseData: data)
@@ -164,6 +171,7 @@ actor XToolOrchestrator {
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
         enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url,width,height"
         enriched["poll.fields"] = enriched["poll.fields"] ?? "options,voting_status,end_datetime"
+
         return enriched
     }
 
@@ -173,6 +181,7 @@ actor XToolOrchestrator {
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url,description,created_at,public_metrics"
         enriched["expansions"] = enriched["expansions"] ?? "pinned_tweet_id"
         enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,created_at,public_metrics"
+
         return enriched
     }
 
@@ -182,6 +191,7 @@ actor XToolOrchestrator {
         enriched["list.fields"] = enriched["list.fields"] ?? "name,description,owner_id,member_count,follower_count,private"
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
         enriched["expansions"] = enriched["expansions"] ?? "owner_id"
+
         return enriched
     }
 
@@ -193,6 +203,7 @@ actor XToolOrchestrator {
         enriched["expansions"] = enriched["expansions"] ?? "sender_id,participant_ids,referenced_tweets.id,attachments.media_keys"
         enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url"
         enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at"
+
         return enriched
     }
 
@@ -201,6 +212,7 @@ actor XToolOrchestrator {
         var enriched = params
         // All news fields
         enriched["news.fields"] = enriched["news.fields"] ?? "category,cluster_posts_results,contexts,disclaimer,hook,id,keywords,name,summary,updated_at"
+
         return enriched
     }
 
@@ -603,6 +615,14 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["id"])
 
+        case .getConversationDMsByParticipant:
+            guard let participantId = parameters["participant_id"] else {
+                throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: participant_id")
+            }
+            path = "/2/dm_conversations/with/\(participantId)/dm_events"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["participant_id"])
+
         case .deleteDMEvent:
             guard let dmEventId = parameters["dm_event_id"] else {
                 throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: dm_event_id")
@@ -756,7 +776,7 @@ actor XToolOrchestrator {
     // MARK: - Response Enrichment
 
     /// Enriches successful API responses with pagination information for the agent
-    private func enrichResponseWithPagination(_ responseString: String?, toolName: String) -> String? {
+    private func enrichResponseWithPagination(_ responseString: String?, toolName: String, originalParameters: [String: Any]) -> String? {
         guard let responseString = responseString,
               let data = responseString.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -765,6 +785,11 @@ actor XToolOrchestrator {
             return responseString
         }
 
+        // Log pagination token information
+        AppLogger.tools.info("PAGINATION: Found next_token for \(toolName)")
+        AppLogger.tools.info("PAGINATION: next_token = \(nextToken)")
+        AppLogger.tools.info("PAGINATION: Original parameters (before enrichment) = \(originalParameters)")
+
         // Create enriched response with pagination guidance
         var enrichedJson = json
         var enrichedMeta = meta
@@ -772,8 +797,29 @@ actor XToolOrchestrator {
         let resultCount = meta["result_count"] as? Int
         let countInfo = resultCount.map { "\($0) results returned. " } ?? ""
 
+        // Format original parameters for display (excluding enriched fields that are auto-added)
+        // But INCLUDE max_results since it's critical for pagination
+        let relevantParams = originalParameters.filter { key, _ in
+            !key.contains(".fields") && key != "expansions"
+        }
+        let paramsJSON = (try? JSONSerialization.data(withJSONObject: relevantParams, options: [.prettyPrinted, .sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+        AppLogger.tools.info("PAGINATION: Relevant parameters for next call = \(paramsJSON)")
+
+        // Create a unique marker to help agent identify which token goes with which request
+        let requestSignature = "REQ_\(toolName)_\(String(describing: originalParameters["id"] ?? ""))_\(Date().timeIntervalSince1970)"
+
         enrichedMeta["pagination_info"] = """
         \(countInfo)More results are available.
+
+        PAGINATION TOKEN FOR THIS RESPONSE: "\(nextToken)"
+        REQUEST SIGNATURE: \(requestSignature)
+
+        WARNING: This token ONLY works for continuing THIS SPECIFIC REQUEST.
+        - If you see multiple pagination tokens in the conversation, use the MOST RECENT one from the MOST RECENT response
+        - Do NOT reuse tokens from earlier responses
+        - Each token is unique and expires after use
 
         IMPORTANT GUIDELINES:
         1. After reading these results to the user, ask if they would like to see more (e.g., "Would you like me to show you more?" or "Should I fetch additional results?").
@@ -792,10 +838,29 @@ actor XToolOrchestrator {
         - Inform the user you're fetching multiple pages (e.g., "I'll fetch all your DMs with Allen, this may take a moment...")
         - After completion, summarize total results retrieved (e.g., "I retrieved 87 messages across 4 pages")
 
-        To fetch the next page, call \(toolName) again with the SAME parameters as before, but include:
-        pagination_token: "\(nextToken)"
+        CRITICAL - How to fetch the next page for THIS response (\(requestSignature)):
 
-        You can adjust max_results to control how many items per page (fewer items = faster responses).
+        You called \(toolName) with these user-specified parameters:
+        \(paramsJSON)
+
+        To fetch the next page, call \(toolName) with:
+        1. ALL the same parameters shown above
+        2. PLUS max_results: \(originalParameters["max_results"] ?? 10) (CRITICAL: must match the first request)
+        3. PLUS pagination_token: "\(nextToken)" (USE THIS EXACT TOKEN, NOT ANY OTHER TOKEN FROM THE CONVERSATION)
+
+        EXACT next call parameters:
+        \(paramsJSON.dropLast())
+          "max_results": \(originalParameters["max_results"] ?? 10),
+          "pagination_token": "\(nextToken)"
+        }
+
+        CRITICAL RULES:
+        - USE THIS TOKEN: "\(nextToken)" (verify the last 5 characters are: \(String(nextToken.suffix(5))))
+        - The pagination token is tied to the EXACT query parameters including max_results
+        - If you omit max_results or use a different value, you'll get "pagination_token is not recognized" error
+        - You MUST include the EXACT SAME max_results value that was used in the first request
+        - DO NOT call \(toolName) with just id and pagination_token - that will fail
+        - DO NOT use a different pagination token from elsewhere in the conversation
         """
 
         enrichedJson["meta"] = enrichedMeta
