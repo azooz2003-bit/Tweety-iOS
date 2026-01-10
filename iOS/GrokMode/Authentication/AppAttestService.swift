@@ -20,7 +20,6 @@ enum AppAttestError: Error {
 actor AppAttestService {
     private let service = DCAppAttestService.shared
     private let keychain = KeychainHelper.shared
-    private let keyIdKey = "app_attest_key_id"
 
     var isSupported: Bool {
         service.isSupported
@@ -29,7 +28,7 @@ actor AppAttestService {
     init() {}
 
     func getOrCreateAttestedKey() async throws -> String {
-        if let existingKeyId = await keychain.getString(for: keyIdKey) {
+        if let existingKeyId = await keychain.getString(for: KeychainKeys.appAttestKeyId) {
             return existingKeyId
         }
         return try await attestNewKey()
@@ -47,13 +46,13 @@ actor AppAttestService {
         let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
 
         try await verifyAttestation(keyId: keyId, attestation: attestation, challenge: challenge)
-        try await keychain.save(keyId, for: keyIdKey)
+        try await keychain.save(keyId, for: KeychainKeys.appAttestKeyId)
 
         return keyId
     }
 
     func generateAssertion(for request: URLRequest, isRetry: Bool = false) async throws -> (keyId: String, assertion: Data) {
-        guard let keyId = await keychain.getString(for: keyIdKey) else {
+        guard let keyId = await keychain.getString(for: KeychainKeys.appAttestKeyId) else {
             let _ = try await attestNewKey()
             return try await generateAssertion(for: request, isRetry: true)
         }
@@ -74,7 +73,7 @@ actor AppAttestService {
     }
 
     func clearAttestation() async {
-        await keychain.delete(keyIdKey)
+        await keychain.delete(KeychainKeys.appAttestKeyId)
     }
 
     #if DEBUG

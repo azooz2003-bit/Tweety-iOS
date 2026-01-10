@@ -77,6 +77,29 @@ actor KeychainHelper {
         return try? JSONDecoder().decode(Date.self, from: data)
     }
 
+    // MARK: - Unsafe synchronous access
+
+    nonisolated func unsafeGetString(for key: String) -> String? {
+        guard let data = unsafeGetData(for: key) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    nonisolated func unsafeGetData(for key: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        guard status == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
     // MARK: - Delete
 
     func delete(_ key: String) {

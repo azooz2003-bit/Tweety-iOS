@@ -15,7 +15,7 @@ struct TypingTextView: View {
 
     @State var currentText = ""
 
-    init(textToType: String, indicesToPauseAt: Set<Int>, typingSpeedInMS: Int = 100, pausingSpeedInMS: Int = 600) {
+    init(textToType: String, indicesToPauseAt: Set<Int>, typingSpeedInMS: Int = 50, pausingSpeedInMS: Int = 600) {
         self.textToType = textToType
         self.indicesToPauseAt = indicesToPauseAt
         self.typingSpeedInMS = typingSpeedInMS
