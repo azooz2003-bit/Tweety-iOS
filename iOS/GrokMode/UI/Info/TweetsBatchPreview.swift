@@ -37,7 +37,7 @@ struct TweetsBatchPreview: View {
         } label: {
             self.content
         }
-        .buttonStyle(.interactiveScale)
+        .buttonStyle(.plain)
         .fullScreenCover(isPresented: $presentTweets) {
             TweetsBatchView(tweets: tweets, imageCache: imageCache)
         }
