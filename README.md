@@ -1,11 +1,13 @@
-# GrokMode
+# Tweety
 
-X (Twitter) voice assistant app for iOS.
+X (Twitter) voice assistant app for iOS with real-time voice chat.
 
 ## Project Structure
 
-- **`iOS/GrokMode/Audio/`** - Voice streaming, audio processing, XAI/OpenAI voice services
-- **`iOS/GrokMode/X API/`** - X API client, tool definitions (`XTool.swift`), orchestrator, models
-- **`iOS/GrokMode/UI/`** - SwiftUI views: voice assistant, conversation items, content blocks, settings
-- **`iOS/GrokMode/UI/Voice Assistant/Models/`** - Conversation state, item types, tool call status
-- **`Proxy/grokmode-proxy/`** - Cloudflare Worker for secure API key handling (xAI/OpenAI tokens, X OAuth2)
+- **`iOS/Tweety/Audio/`** - Voice streaming, audio processing, Grok/OpenAI voice services, VAD
+- **`iOS/Tweety/X API/`** - X API client, tool definitions and orchestration
+- **`iOS/Tweety/UI/`** - SwiftUI views: voice assistant, authentication, settings, conversation history
+- **`iOS/Tweety/Authentication/`** - X OAuth2, App Attest, keychain
+- **`iOS/Tweety/Store/`** - In-app purchases, StoreKit, credits management
+- **`iOS/Tweety/Usage/`** - Usage tracking and cost analytics
+- **`Server/grokmode-proxy/`** - Cloudflare Worker for API key handling and OAuth2
