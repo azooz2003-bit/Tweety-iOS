@@ -426,6 +426,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tweety/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tweety;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Provide microphone access to talk to the voice agent.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition will be used to facilitate better conversations with the voice agent.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -468,6 +469,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Tweety/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tweety;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Provide microphone access to talk to the voice agent.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Speech recognition will be used to facilitate better conversations with the voice agent.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
