@@ -165,13 +165,19 @@ actor XToolOrchestrator {
     // MARK: - Field Enrichment Helpers
 
     /// Enriches parameters with essential tweet-related fields
-    private func enrichWithTweetFields(_ params: [String: Any]) -> [String: Any] {
+    private func enrichWithTweetFields(_ params: [String: Any], limitResults: Bool = false) -> [String: Any] {
         var enriched = params
         enriched["expansions"] = enriched["expansions"] ?? "attachments.poll_ids,attachments.media_keys,author_id,referenced_tweets.id,referenced_tweets.id.author_id,referenced_tweets.id.attachments.media_keys"
         enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at,public_metrics,referenced_tweets,entities,conversation_id,in_reply_to_user_id,edit_controls,note_tweet,reply_settings"
         enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
         enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url,width,height"
         enriched["poll.fields"] = enriched["poll.fields"] ?? "options,voting_status,end_datetime"
+
+        // Force max_results to 10 for paginated endpoints to keep voice agent context healthy
+        if limitResults {
+            let currentMax = enriched["max_results"] as? Int ?? 10
+            enriched["max_results"] = min(currentMax, 10)
+        }
 
         return enriched
     }
@@ -276,24 +282,24 @@ actor XToolOrchestrator {
             guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/tweets"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         case .getUserMentions:
             guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/mentions"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         case .getHomeTimeline:
             guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/timelines/reverse_chronological"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         case .searchRecentTweets:
             path = "/2/tweets/search/recent"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true))
 
         case .searchAllTweets:
             path = "/2/tweets/search/all"
@@ -445,7 +451,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/liked_tweets"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         // MARK: - Retweets
         case .getRetweetedBy:
@@ -476,7 +482,7 @@ actor XToolOrchestrator {
         case .getRepostsOfMe:
             path = "/2/users/reposts_of_me"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true))
 
         // MARK: - Lists
         case .createList:

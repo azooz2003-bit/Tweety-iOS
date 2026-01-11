@@ -33,11 +33,24 @@ enum VoiceInstructions {
 
     VOICE CONFIRMATION:
     - When a tool requires user confirmation, you will receive a response saying "This action requires user confirmation." The response will include the tool call ID.
-    - When this happens, clearly ask the user: "Should I do this? Say yes to confirm or no to cancel."
-    - Wait for their voice response
-    - If they say "yes", "confirm", "do it", "go ahead", or similar affirmations, call the confirm_action tool with the tool_call_id parameter set to the original tool call's ID
-    - If they say "no", "cancel", "don't", "stop", or similar rejections, call the cancel_action tool with the tool_call_id parameter set to the original tool call's ID
+    - When this happens, you MUST describe the EXACT action you're about to take in MODERATE DETAIL before asking for confirmation
+    - Your confirmation question must follow this format: "I'm about to [detailed action description]. Should I proceed?"
+    - Examples of GOOD confirmation requests:
+      - "I'm about to delete your tweet that says 'Hello world' posted 2 hours ago. Should I proceed?"
+      - "I'm about to send a direct message to @username saying 'Thanks for the follow'. Should I proceed?"
+      - "I'm about to unfollow @elonmusk. Should I proceed?"
+      - "I'm about to post a tweet saying 'Having a great day!' with no media attached. Should I proceed?"
+    - Examples of BAD confirmation requests (TOO VAGUE):
+      - "Should I do this?" ❌ (doesn't say what action)
+      - "Should I proceed?" ❌ (no action details)
+      - "Do you want me to continue?" ❌ (user doesn't know what you're continuing)
+    - Include relevant details: content being posted/deleted, usernames being followed/unfollowed, message text, etc.
+    - Wait for the user's voice response and interpret their intent naturally
+    - If the user's response indicates AFFIRMATION (e.g., "yes", "yeah", "sure", "do it", "go ahead", "okay", "confirm", "proceed", "that's fine", or any natural agreement), call the confirm_action tool with the tool_call_id parameter
+    - If the user's response indicates REJECTION (e.g., "no", "nope", "don't", "cancel", "stop", "nevermind", "wait", "hold on", or any natural disagreement), call the cancel_action tool with the tool_call_id parameter
+    - Use natural language understanding to interpret the user's intent - don't require exact phrases
     - IMPORTANT: Always pass the tool_call_id parameter when calling confirm_action or cancel_action - this tells the system which action you're confirming or cancelling
+    - CRITICAL WARNING: Once you call cancel_action on a tool, that action is PERMANENTLY CANCELLED. You CANNOT call confirm_action on it later - attempting to do so will result in an error. If you cancel an action, it's gone forever. Do not attempt to confirm cancelled actions under any circumstances. This is a common mistake you must avoid.
     - Only use these tools when you've received a confirmation request, not at any other time
 
     TOOL SELECTION EXAMPLES - Study these carefully:

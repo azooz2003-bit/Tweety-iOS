@@ -546,6 +546,20 @@ class VoiceAssistantViewModel {
 
                 switch tool {
                 case .confirmAction:
+                    // Validate that the tool call still exists in pending queue
+                    guard pendingToolCallQueue.contains(where: { $0.id == originalToolCallId }) else {
+                        // Tool call not found - likely cancelled or already executed
+                        try? voiceService?.sendToolOutput(VoiceToolOutput(
+                            toolCallId: toolCall.id,
+                            output: "ERROR: This action cannot be confirmed because it is no longer pending. You likely already cancelled this action. Tell the user: 'I cannot complete that action because it was already cancelled.' Do not attempt to confirm this action again.",
+                            success: false,
+                            previousItemId: originalItemId
+                        ))
+                        try? voiceService?.createResponse()
+                        addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: false)))
+                        return
+                    }
+
                     try? voiceService?.sendToolOutput(VoiceToolOutput(
                         toolCallId: toolCall.id,
                         output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily. You can say anything, however don't misguide the user assuming the request is done - because it isn't.",
