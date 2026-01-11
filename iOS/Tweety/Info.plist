@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BASE_OPENAI_PROXY_URL</key>
+	<string>$(BASE_OPENAI_PROXY_URL)</string>
+	<key>BASE_PROXY_URL</key>
+	<string>$(BASE_PROXY_URL)</string>
+	<key>BASE_XAI_PROXY_URL</key>
+	<string>$(BASE_XAI_PROXY_URL)</string>
+	<key>BASE_X_PROXY_URL</key>
+	<string>$(BASE_X_PROXY_URL)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.tweety.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tweety</string>
+			</array>
+		</dict>
+	</array>
+	<key>DEVELOPMENT_TEAM</key>
+	<string>$(DEVELOPMENT_TEAM)</string>
+	<key>TEAM_ID</key>
+	<string>$(TEAM_ID)</string>
+	<key>X_AI_API_KEY</key>
+	<string>$(X_AI_API_KEY)</string>
+	<key>X_API_KEY</key>
+	<string>$(X_API_KEY)</string>
+	<key>X_CLIENT_ID</key>
+	<string>$(X_CLIENT_ID)</string>
+</dict>
+</plist>
