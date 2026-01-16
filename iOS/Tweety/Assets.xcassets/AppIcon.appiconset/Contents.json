@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "Tweety (Smiling) (Light)-iOS-Default-1024x1024@1x.png",
+      "filename" : "Tweety (Final).png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "Tweety (Smiling) (Dark)-iOS-Default-1024x1024@1x.png",
+      "filename" : "Tweety Dark (Final).png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "Tweety (Smiling) (Light)-iOS-TintedLight-1024x1024@1x.png",
+      "filename" : "Tweety Tinted (Final).png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
