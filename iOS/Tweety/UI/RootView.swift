@@ -19,7 +19,6 @@ struct RootView: View {
         Group {
             if authViewModel.isAuthenticated {
                 VoiceAssistantView(
-                    autoConnect: true,
                     authViewModel: authViewModel,
                     appAttestService: appAttestService,
                     storeManager: storeManager,

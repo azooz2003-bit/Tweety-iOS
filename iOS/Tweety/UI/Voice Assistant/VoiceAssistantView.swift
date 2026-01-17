@@ -16,7 +16,6 @@ struct VoiceAssistantView: View {
     @State private var showSettings = false
     @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .light)
 
-    let shouldAutoconnect: Bool
     let imageCache: ImageCache
     let creditsService: RemoteCreditsService
     let authViewModel: AuthViewModel
@@ -25,7 +24,6 @@ struct VoiceAssistantView: View {
     let barSpacing: CGFloat = 4
 
     init(
-        autoConnect: Bool = false,
         authViewModel: AuthViewModel,
         appAttestService: AppAttestService,
         storeManager: StoreKitManager,
@@ -33,7 +31,6 @@ struct VoiceAssistantView: View {
         usageTracker: UsageTracker,
         imageCache: ImageCache
     ) {
-        self.shouldAutoconnect = autoConnect
         self.imageCache = imageCache
         self.creditsService = creditsService
         self.authViewModel = authViewModel
