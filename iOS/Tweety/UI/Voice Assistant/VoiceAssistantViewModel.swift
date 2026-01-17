@@ -75,19 +75,11 @@ class VoiceAssistantViewModel {
         self.usageTracker = usageTracker
         self.usageClock = VoiceUsageClock(usageTracker: usageTracker, authService: authViewModel.authService)
 
-        if let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService),
-           let serviceType = VoiceServiceType(rawValue: serviceStr) {
-            self.selectedServiceType = serviceType
-        } else {
-            self.selectedServiceType = .openai
-        }
+        let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService) ?? "" // nil coalesce below should handle ""
+        selectedServiceType = VoiceServiceType(rawValue: serviceStr) ?? .openai
 
-        if let voiceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoice),
-           let voiceType = VoiceOption(rawValue: voiceStr) {
-            self.selectedVoice = voiceType
-        } else {
-            self.selectedVoice = .coral
-        }
+        let voiceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoice) ?? "" // nil coalesce below should handle ""
+        selectedVoice = VoiceOption(rawValue: voiceStr) ?? .coral
 
         usageClock.onInsufficientCredits = { [weak self] in
             self?.stopSession()
@@ -245,7 +237,7 @@ class VoiceAssistantViewModel {
         addSystemMessage("Disconnected")
     }
 
-    // MARK: - Audio Streaming
+    // MARK: - Session
 
     func startSession() {
         isSessionActivated = true
