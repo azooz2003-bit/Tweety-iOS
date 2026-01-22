@@ -30,10 +30,10 @@ class AudioStreamer: NSObject {
     private var serverAudioFormat: AVAudioFormat
     private var mixerNode: AVAudioMixerNode
 
-    // Hardware format - determined at runtime after voice processing is enabled
+    /// Hardware format - determined at runtime after voice processing is enabled
     private let hardwareFormat: AVAudioFormat
 
-    // Serial queue for all audio operations to keep them off main thread
+    /// Serial queue for all audio operations to keep them off main thread
     private let audioQueue = DispatchQueue(label: "com.tweety.audiostreamer", qos: .userInitiated)
 
     private var hasTapInstalled = false
@@ -51,7 +51,7 @@ class AudioStreamer: NSObject {
         hasTapInstalled && audioEngine.isRunning
     }
 
-    // e.g. XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
+    /// e.g. XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
     var serverSampleRate: Double {
         serverAudioFormat.sampleRate
     }
@@ -122,12 +122,10 @@ class AudioStreamer: NSObject {
         self.serverAudioFormat = serverAudioFormat
         self.hardwareFormat = hardwareFormat
 
-        // Initialize Speech-based VAD
         self.speechVAD = SpeechVAD()
 
         super.init()
 
-        // Set delegate after super.init
         self.speechVAD.delegate = self
     }
 
@@ -194,7 +192,6 @@ class AudioStreamer: NSObject {
         AppLogger.audio.info("Audio streaming stopped")
     }
     
-    // Playback Function
     func stopPlayback() {
         audioQueue.async {
             if self.playerNode.isPlaying {
