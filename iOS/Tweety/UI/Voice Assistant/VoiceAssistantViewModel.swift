@@ -245,19 +245,24 @@ class VoiceAssistantViewModel {
         sessionStartStopTask = Task { @MainActor in
             await storeManager.restoreAllTransactions()
 
-            // Check balance before starting
+            // Check balance & sub before starting
             do {
                 let userId = try await authViewModel.authService.requiredUserId
 
-                let balance = try await creditsService.getBalance(userId: userId)
+                async let checkBalance = creditsService.getBalance(userId: userId)
+                async let checkHasFreeAccess = creditsService.checkFreeAccess(userId: userId)
 
-                guard !storeManager.activeSubscriptions.isEmpty else{
+                let (balance, hasFreeAccess) = await (try checkBalance, (try? checkHasFreeAccess) ?? false)
+
+                AppLogger.usage.debug("hasFreeAccess: \(hasFreeAccess)")
+
+                guard hasFreeAccess || !storeManager.activeSubscriptions.isEmpty else{
                     self.isSessionActivated = false
                     self.accessBlockedReason = .noSubscription
                     return
                 }
 
-                guard balance.remaining > 0 else {
+                guard hasFreeAccess || balance.remaining > 0 else {
                     self.isSessionActivated = false
                     self.accessBlockedReason = .insufficientCredits
                     return

@@ -13,6 +13,17 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
 
+-- Free access users table (users who can use Tweety without a subscription)
+-- Manually add X user IDs to this table to grant free access
+CREATE TABLE IF NOT EXISTS free_access_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    x_user_id TEXT UNIQUE NOT NULL,
+    granted_date INTEGER DEFAULT (unixepoch()),
+    notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_free_access_x_user_id ON free_access_users(x_user_id);
+
 -- Receipts table (stores all processed transactions)
 CREATE TABLE IF NOT EXISTS receipts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

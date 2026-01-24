@@ -24,6 +24,14 @@ export async function getRemainingCredits(userId: string, env: Env): Promise<Cre
 	};
 }
 
+export async function hasFreeAccess(userId: string, env: Env): Promise<boolean> {
+	const result = await env.tweety_credits.prepare(
+		'SELECT id FROM free_access_users WHERE x_user_id = ?'
+	).bind(userId).first();
+
+	return result !== null;
+}
+
 export async function isTransactionProcessed(transactionId: string, userId: string, env: Env): Promise<boolean> {
 	const result = await env.tweety_credits.prepare(
 		'SELECT id FROM receipts WHERE transaction_id = ? AND user_id = ?'

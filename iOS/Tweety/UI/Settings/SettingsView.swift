@@ -26,12 +26,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Balance Header
+                // MARK: Balance Header
                 Section {
                     BalanceHeaderView(balance: viewModel.creditBalance)
                 }
 
-                // Subscriptions
+                // MARK: Subscriptions
                 if !viewModel.subscriptionProducts.isEmpty {
                     Section("Subscriptions") {
                         ForEach(viewModel.subscriptionProducts.sorted(by: { $0.price < $1.price })) { product in
@@ -46,7 +46,7 @@ struct SettingsView: View {
                     }
                 }
 
-                // One-Time Purchases
+                // MARK: One-Time Purchases
                 if !viewModel.oneTimeProducts.isEmpty {
                     Section("One-Time Purchases") {
                         ForEach(viewModel.oneTimeProducts) { product in
@@ -61,7 +61,7 @@ struct SettingsView: View {
                     }
                 }
 
-                // Account Actions
+                // MARK: Account Actions
                 Section("Account") {
                     Button {
                         Task {
@@ -78,6 +78,7 @@ struct SettingsView: View {
                     }
                     .disabled(viewModel.isPurchasing)
 
+
                     #if DEBUG
                     NavigationLink("Usage Dashboard") {
                         UsageDashboardView(tracker: usageTracker)
@@ -93,20 +94,41 @@ struct SettingsView: View {
                     #endif
                 }
 
-                // Logout
+                // MARK: Logout & Delete
                 Section {
-                    Button {
-                        Task {
-                            await onLogout()
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            Spacer()
+                    HStack(spacing: 0) {
+                        // This is to fix a "bug" where the separator is clipped
+                        Text("").frame(maxWidth: 0)
+
+                        Button {
+                            Task {
+                                await onLogout()
+                                dismiss()
+                            }
+                        } label: {
                             Text("Log Out")
                                 .foregroundStyle(.red)
-                            Spacer()
+                                .frame(maxWidth: .infinity)
                         }
+                    }
+
+
+                    VStack {
+                        Button {
+                            Task {
+                                await authViewModel.deleteAccountRequested()
+                            }
+
+                        } label: {
+                            Text("Delete Tweety Account")
+                                .foregroundStyle(.red)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        Text("This will only delete your Tweety account, your X account's data will not be affected.")
+                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
                     }
                 }
             }

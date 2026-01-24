@@ -2,6 +2,7 @@ import { verifyAttestation, verifyAssertion, generateChallenge } from './appAtte
 import { syncTransactions } from './credits/handlers/syncTransactions';
 import { trackUsage } from './credits/handlers/trackUsage';
 import { getBalance } from './credits/handlers/getBalance';
+import { checkFreeAccess } from './credits/handlers/hasFreeAccess';
 
 export interface Env {
     X_AI_API_KEY: string;
@@ -125,7 +126,8 @@ Promise<Response> {
             '/x/oauth2/refresh',
             '/credits/transactions/sync',
             '/credits/usage/track',
-            '/credits/balance'
+            '/credits/balance',
+            '/credits/has-free-access'
         ];
 
         if (protectedPaths.some(path => url.pathname === path)) {
@@ -307,6 +309,11 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
         // Credits: Get balance
         if (url.pathname === '/credits/balance') {
             return await getBalance(request, env);
+        }
+
+        // Credits: Check free access
+        if (url.pathname === '/credits/has-free-access') {
+            return await checkFreeAccess(request, env);
         }
 
         return new Response('Not found', { status: 404 });

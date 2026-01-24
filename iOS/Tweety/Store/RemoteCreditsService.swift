@@ -128,4 +128,29 @@ actor RemoteCreditsService {
 
         throw lastError ?? CreditsServiceError.networkError(NSError(domain: "RemoteCreditsService", code: -1))
     }
+
+    func checkFreeAccess(userId: String) async throws -> Bool {
+        var request = URLRequest(url: Config.freeAccessURL)
+        request.httpMethod = "GET"
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
+
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CreditsServiceError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 200 {
+            let freeAccessResponse = try JSONDecoder().decode(FreeAccessResponse.self, from: data)
+            AppLogger.store.info("Free access check: \(freeAccessResponse.hasFreeAccess)")
+            return freeAccessResponse.hasFreeAccess
+        } else if httpResponse.statusCode == 403 {
+            throw CreditsServiceError.attestationFailed
+        } else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw CreditsServiceError.serverError(errorMessage)
+        }
+    }
 }

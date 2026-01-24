@@ -63,4 +63,5 @@ enum Config {
     static let transactionSyncURL = creditsBaseURL.appending(path: "transactions/sync")
     static let usageTrackURL = creditsBaseURL.appending(path: "usage/track")
     static let balanceURL = creditsBaseURL.appending(path: "balance")
+    static let freeAccessURL = creditsBaseURL.appending(path: "has-free-access")
 }

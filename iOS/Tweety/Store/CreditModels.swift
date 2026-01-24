@@ -23,6 +23,13 @@ struct CreditBalance: Codable {
 }
 
 nonisolated
+struct FreeAccessResponse: Decodable {
+    let success: Bool
+    let userId: String
+    let hasFreeAccess: Bool
+}
+
+nonisolated
 struct TransactionSyncRequest: Codable {
     let transactionId: String
     let originalTransactionId: String

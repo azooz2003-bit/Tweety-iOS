@@ -41,6 +41,10 @@ final class AuthViewModel {
         await authService.logout()
     }
 
+    func deleteAccountRequested() async {
+
+    }
+
     /// Get a valid access token, refreshing if necessary
     /// Returns nil if session expired - UI will automatically show login via state stream
     func getValidAccessToken() async -> String? {
