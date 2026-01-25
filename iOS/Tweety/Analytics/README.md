@@ -1,6 +1,6 @@
 #  Analytics
 
-### Tracked
+### Tracked (All)
 - `bundleID`: Distinguishes production vs beta vs different app variants
 - `version`: User-facing version (e.g., "1.2.0") - correlates bugs to releases and tracks feature adoption
 - `build`: Internal build number - identifies exact binary when multiple builds exist for same version
