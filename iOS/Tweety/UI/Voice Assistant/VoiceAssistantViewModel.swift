@@ -242,6 +242,7 @@ class VoiceAssistantViewModel {
     func startSession() {
         isSessionActivated = true
         sessionStartStopTask?.cancel()
+        accessBlockedReason = nil
         sessionStartStopTask = Task { @MainActor in
             await storeManager.restoreAllTransactions()
 
