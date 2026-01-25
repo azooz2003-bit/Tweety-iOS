@@ -384,6 +384,11 @@ class VoiceAssistantViewModel {
                 executeTool(toolCall)
 
             case .requiresConfirmation:
+                guard FeatureFlags.shared.shouldRequireConfirmation(for: endpoint) else {
+                    executeTool(toolCall)
+                    break
+                }
+
                 // Check if this will be the focused tool (first in queue)
                 let isFirstInQueue = pendingToolCallQueue.isEmpty
 
