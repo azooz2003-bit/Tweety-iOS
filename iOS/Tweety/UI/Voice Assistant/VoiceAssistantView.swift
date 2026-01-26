@@ -89,6 +89,7 @@ struct VoiceAssistantView: View {
                     if !viewModel.isSessionActivated {
                         waveformButton(barCount: 5) {
                             hapticGenerator.impactOccurred()
+                            AnalyticsManager.log(.voiceSessionStartButtonPressed(VoiceSessionStartButtonPressedEvent()))
                             withAnimation {
                                 viewModel.startSession()
                             }
@@ -118,6 +119,7 @@ struct VoiceAssistantView: View {
                 try? await viewModel.storeManager.loadProducts()
             }
             .onAppear {
+                AnalyticsManager.log(.voiceAssistantScreenShown(VoiceAssistantScreenShownEvent()))
                 viewModel.checkPermissions()
                 hapticGenerator.prepare()
             }
@@ -137,6 +139,8 @@ struct VoiceAssistantView: View {
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
+                AnalyticsManager.log(.appLifecycleChanged(AppLifecycleChangedEvent(stage: newPhase.stringValue)))
+
                 if newPhase == .background {
                     viewModel.usageClock.trackPartialUsageIfNeeded(for: viewModel.selectedServiceType)
                 }
@@ -242,6 +246,7 @@ struct VoiceAssistantView: View {
     private var stopButton: some View {
         Button("Stop", systemImage: "stop.fill") {
             hapticGenerator.impactOccurred()
+            AnalyticsManager.log(.voiceSessionStopButtonPressed(VoiceSessionStopButtonPressedEvent()))
             withAnimation {
                 viewModel.stopSession()
             }

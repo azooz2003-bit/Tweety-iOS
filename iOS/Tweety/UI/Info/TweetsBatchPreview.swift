@@ -33,7 +33,8 @@ struct TweetsBatchPreview: View {
 
     var body: some View {
         Button {
-           presentTweets = true
+            AnalyticsManager.log(.batchTweetsViewOpened(BatchTweetsViewOpenedEvent()))
+            presentTweets = true
         } label: {
             self.content
         }

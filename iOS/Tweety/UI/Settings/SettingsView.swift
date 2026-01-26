@@ -40,7 +40,21 @@ struct SettingsView: View {
                                 product: product,
                                 isActive: storeVM.activeSubscriptions.contains(where: { $0.id == product.id }),
                                 onPurchase: {
-                                    await storeVM.purchase(product)
+                                    AnalyticsManager.log(.subscribeButtonPressedFromSettings(SubscribeButtonPressedFromSettingsEvent()))
+                                    do {
+                                        try await storeVM.purchase(product)
+                                        let currency = product.priceFormatStyle.currencyCode
+                                        AnalyticsManager.log(.subscribeSucceededFromSettings(SubscribeSucceededFromSettingsEvent(
+                                            productId: product.id,
+                                            price: Double(truncating: product.price as NSNumber),
+                                            currency: currency
+                                        )))
+                                    } catch {
+                                        AnalyticsManager.log(.subscribeFailedFromSettings(SubscribeFailedFromSettingsEvent(
+                                            productId: product.id,
+                                            errorReason: error.localizedDescription
+                                        )))
+                                    }
                                 }
                             )
                         }
@@ -55,7 +69,23 @@ struct SettingsView: View {
                                 product: product,
                                 isActive: false,
                                 onPurchase: {
-                                    await storeVM.purchase(product)
+                                    AnalyticsManager.log(.creditsPurchaseButtonPressedFromSettings(CreditsPurchaseButtonPressedFromSettingsEvent()))
+                                    do {
+                                        try await storeVM.purchase(product)
+                                        let currency = product.priceFormatStyle.currencyCode
+                                        let creditsAmount = ProductConfiguration.creditsAmount(for: product.id) ?? 0
+                                        AnalyticsManager.log(.creditsPurchaseSucceededFromSettings(CreditsPurchaseSucceededFromSettingsEvent(
+                                            productId: product.id,
+                                            price: Double(truncating: product.price as NSNumber),
+                                            currency: currency,
+                                            creditsAmount: creditsAmount
+                                        )))
+                                    } catch {
+                                        AnalyticsManager.log(.creditsPurchaseFailedFromSettings(CreditsPurchaseFailedFromSettingsEvent(
+                                            productId: product.id,
+                                            errorReason: error.localizedDescription
+                                        )))
+                                    }
                                 }
                             )
                         }

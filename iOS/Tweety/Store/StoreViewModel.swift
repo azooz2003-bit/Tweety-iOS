@@ -56,7 +56,7 @@ final class StoreViewModel {
         }
     }
 
-    func purchase(_ product: Product) async {
+    func purchase(_ product: Product) async throws {
         isPurchasing = true
         defer { isPurchasing = false }
 
@@ -67,10 +67,12 @@ final class StoreViewModel {
             self.creditBalance = try await creditsService.getBalance(userId: userId)
         } catch StoreError.userCancelled {
             AppLogger.store.info("User cancelled purchase")
+            throw StoreError.userCancelled
         } catch {
             self.errorMessage = "Purchase failed: \(error.localizedDescription)"
             self.showError = true
             AppLogger.store.error("Purchase failed: \(error)")
+            throw error
         }
     }
 

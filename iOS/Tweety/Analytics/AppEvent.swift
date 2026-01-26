@@ -22,12 +22,16 @@ enum AppEvent {
 
     case subscribeButtonPressedFromChatError(SubscribeButtonPressedFromChatErrorEvent)
     case subscribeSucceededFromChatError(SubscribeSucceededFromChatErrorEvent)
+    case subscribeFailedFromChatError(SubscribeFailedFromChatErrorEvent)
     case subscribeButtonPressedFromSettings(SubscribeButtonPressedFromSettingsEvent)
     case subscribeSucceededFromSettings(SubscribeSucceededFromSettingsEvent)
+    case subscribeFailedFromSettings(SubscribeFailedFromSettingsEvent)
     case creditsPurchaseButtonPressedFromChatError(CreditsPurchaseButtonPressedFromChatErrorEvent)
     case creditsPurchaseSucceededFromChatError(CreditsPurchaseSucceededFromChatErrorEvent)
+    case creditsPurchaseFailedFromChatError(CreditsPurchaseFailedFromChatErrorEvent)
     case creditsPurchaseButtonPressedFromSettings(CreditsPurchaseButtonPressedFromSettingsEvent)
     case creditsPurchaseSucceededFromSettings(CreditsPurchaseSucceededFromSettingsEvent)
+    case creditsPurchaseFailedFromSettings(CreditsPurchaseFailedFromSettingsEvent)
 
     case batchTweetsViewOpened(BatchTweetsViewOpenedEvent)
     case toolConfirmationButtonPressed(ToolConfirmationButtonPressedEvent)
@@ -47,12 +51,16 @@ enum AppEvent {
         case .userSessionEvent(let e): return e
         case .subscribeButtonPressedFromChatError(let e): return e
         case .subscribeSucceededFromChatError(let e): return e
+        case .subscribeFailedFromChatError(let e): return e
         case .subscribeButtonPressedFromSettings(let e): return e
         case .subscribeSucceededFromSettings(let e): return e
+        case .subscribeFailedFromSettings(let e): return e
         case .creditsPurchaseButtonPressedFromChatError(let e): return e
         case .creditsPurchaseSucceededFromChatError(let e): return e
+        case .creditsPurchaseFailedFromChatError(let e): return e
         case .creditsPurchaseButtonPressedFromSettings(let e): return e
         case .creditsPurchaseSucceededFromSettings(let e): return e
+        case .creditsPurchaseFailedFromSettings(let e): return e
         case .batchTweetsViewOpened(let e): return e
         case .toolConfirmationButtonPressed(let e): return e
         case .appLifecycleChanged(let e): return e

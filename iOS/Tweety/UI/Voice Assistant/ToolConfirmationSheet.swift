@@ -66,6 +66,10 @@ struct ToolConfirmationSheet: View {
 
             HStack(spacing: 16) {
                 Button {
+                    AnalyticsManager.log(.toolConfirmationButtonPressed(ToolConfirmationButtonPressedEvent(
+                        action: "cancel",
+                        toolName: toolCall.functionName
+                    )))
                     onCancel()
                     dismiss()
                 } label: {
@@ -83,6 +87,10 @@ struct ToolConfirmationSheet: View {
                 )
 
                 Button {
+                    AnalyticsManager.log(.toolConfirmationButtonPressed(ToolConfirmationButtonPressedEvent(
+                        action: "approve",
+                        toolName: toolCall.functionName
+                    )))
                     onApprove()
                     dismiss()
                 } label: {

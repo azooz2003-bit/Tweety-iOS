@@ -50,6 +50,7 @@ class VoiceAssistantViewModel {
     }
 
     // MARK: - Private Properties
+    private var connectionStartTime: Date?
     private var voiceService: VoiceService?
     private var audioStreamer: AudioStreamer?
     private let authViewModel: AuthViewModel
@@ -82,10 +83,12 @@ class VoiceAssistantViewModel {
         selectedVoice = VoiceOption(rawValue: voiceStr) ?? .coral
 
         usageClock.onInsufficientCredits = { [weak self] in
+            AnalyticsManager.log(.voiceSessionStoppedAbruptly(VoiceSessionStoppedAbruptlyEvent(reason: "Insufficient credits")))
             self?.stopSession()
             self?.accessBlockedReason = .insufficientCredits
         }
         usageClock.onTrackingError = { [weak self] error in
+            AnalyticsManager.log(.voiceSessionStoppedAbruptly(VoiceSessionStoppedAbruptlyEvent(reason: "Usage tracking failed")))
             self?.stopSession()
             self?.voiceSessionState = .error("Usage tracking failed. Session stopped.")
         }
@@ -134,6 +137,10 @@ class VoiceAssistantViewModel {
         // Set up callbacks (already on main actor)
         voiceService.onConnected = { [weak self] in
             Task { @MainActor in
+                if let startTime = self?.connectionStartTime {
+                    let launchTimeMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                    AnalyticsManager.log(.voiceSessionBegan(VoiceSessionBeganEvent(sessionLaunchTimeMs: launchTimeMs)))
+                }
                 self?.voiceSessionState = .connected
                 self?.addSystemMessage("Connected to \(serviceName) Voice")
             }
@@ -148,6 +155,7 @@ class VoiceAssistantViewModel {
         voiceService.onError = { [weak self] error in
             Task { @MainActor in
                 AppLogger.voice.error("\(serviceName) Error: \(error.localizedDescription)")
+                AnalyticsManager.log(.voiceSessionStoppedAbruptly(VoiceSessionStoppedAbruptlyEvent(reason: error.localizedDescription)))
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopSession()
@@ -170,6 +178,7 @@ class VoiceAssistantViewModel {
                     AppLogger.voice.info("WebSocket disconnected normally (code: \(closeCode.rawValue))")
                 } else {
                     AppLogger.voice.error("WebSocket disconnected with error code: \(closeCode.rawValue)")
+                    AnalyticsManager.log(.voiceSessionStoppedAbruptly(VoiceSessionStoppedAbruptlyEvent(reason: "WebSocket disconnected: \(closeCode.rawValue)")))
                 }
 
                 self?.stopSession()
@@ -240,6 +249,7 @@ class VoiceAssistantViewModel {
     // MARK: - Session
 
     func startSession() {
+        connectionStartTime = Date()
         isSessionActivated = true
         sessionStartStopTask?.cancel()
         accessBlockedReason = nil
@@ -258,12 +268,14 @@ class VoiceAssistantViewModel {
                 AppLogger.usage.debug("hasFreeAccess: \(hasFreeAccess)")
 
                 guard hasFreeAccess || !storeManager.activeSubscriptions.isEmpty else{
+                    AnalyticsManager.log(.sessionRejected(SessionRejectedEvent(reason: "No active subscription")))
                     self.isSessionActivated = false
                     self.accessBlockedReason = .noSubscription
                     return
                 }
 
                 guard hasFreeAccess || balance.remaining > 0 else {
+                    AnalyticsManager.log(.sessionRejected(SessionRejectedEvent(reason: "Insufficient balance")))
                     self.isSessionActivated = false
                     self.accessBlockedReason = .insufficientCredits
                     return
@@ -272,6 +284,7 @@ class VoiceAssistantViewModel {
                 AppLogger.voice.info("Balance check passed: $\(balance.remaining) remaining")
             } catch {
                 AppLogger.voice.error("Pre-session checks failed: \(error)")
+                AnalyticsManager.log(.sessionRejected(SessionRejectedEvent(reason: error.localizedDescription)))
                 self.voiceSessionState = .error("Could not verify balance. Check your connection.")
                 self.isSessionActivated = false
                 return
@@ -326,14 +339,17 @@ class VoiceAssistantViewModel {
             break
 
         case .userSpeechStarted:
+            AnalyticsManager.log(.voiceModelEvent(VoiceModelEvent(eventType: "user_speech_started")))
             try? voiceService?.truncateResponse()
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
         case .userSpeechStopped:
+            AnalyticsManager.log(.voiceModelEvent(VoiceModelEvent(eventType: "user_speech_stopped")))
             voiceSessionState = .connected
 
         case .assistantSpeaking(let itemId):
+            AnalyticsManager.log(.voiceModelEvent(VoiceModelEvent(eventType: "assistant_speaking")))
             voiceSessionState = .grokSpeaking(itemId: itemId)
 
         case .audioDelta(let data):
@@ -624,28 +640,56 @@ class VoiceAssistantViewModel {
     func handleAccessBlockedPurchase() async {
         guard let reason = accessBlockedReason else { return }
 
-        do {
-            switch reason {
-            case .noSubscription:
-                // Find subscription product
-                if let subscriptionProduct = storeManager.products.first(where: {
-                    ProductConfiguration.ProductID(rawValue: $0.id)?.isSubscription == true
-                }) {
+        switch reason {
+        case .noSubscription:
+            // Find subscription product
+            if let subscriptionProduct = storeManager.products.first(where: {
+                ProductConfiguration.ProductID(rawValue: $0.id)?.isSubscription == true
+            }) {
+                AnalyticsManager.log(.subscribeButtonPressedFromChatError(SubscribeButtonPressedFromChatErrorEvent()))
+                do {
                     _ = try await storeManager.purchase(subscriptionProduct)
+                    let currency = subscriptionProduct.priceFormatStyle.currencyCode
+                    AnalyticsManager.log(.subscribeSucceededFromChatError(SubscribeSucceededFromChatErrorEvent(
+                        productId: subscriptionProduct.id,
+                        price: Double(truncating: subscriptionProduct.price as NSNumber),
+                        currency: currency
+                    )))
                     accessBlockedReason = nil
-                }
-
-            case .insufficientCredits:
-                // Find credits product
-                if let creditsProduct = storeManager.products.first(where: {
-                    $0.id == ProductConfiguration.ProductID.credits10.rawValue
-                }) {
-                    _ = try await storeManager.purchase(creditsProduct)
-                    accessBlockedReason = nil
+                } catch {
+                    AnalyticsManager.log(.subscribeFailedFromChatError(SubscribeFailedFromChatErrorEvent(
+                        productId: subscriptionProduct.id,
+                        errorReason: error.localizedDescription
+                    )))
+                    AppLogger.voice.error("Subscription purchase failed: \(error)")
                 }
             }
-        } catch {
-            AppLogger.voice.error("Purchase failed: \(error)")
+
+        case .insufficientCredits:
+            // Find credits product
+            if let creditsProduct = storeManager.products.first(where: {
+                $0.id == ProductConfiguration.ProductID.credits10.rawValue
+            }) {
+                AnalyticsManager.log(.creditsPurchaseButtonPressedFromChatError(CreditsPurchaseButtonPressedFromChatErrorEvent()))
+                do {
+                    _ = try await storeManager.purchase(creditsProduct)
+                    let currency = creditsProduct.priceFormatStyle.currencyCode
+                    let creditsAmount = ProductConfiguration.creditsAmount(for: creditsProduct.id) ?? 0
+                    AnalyticsManager.log(.creditsPurchaseSucceededFromChatError(CreditsPurchaseSucceededFromChatErrorEvent(
+                        productId: creditsProduct.id,
+                        price: Double(truncating: creditsProduct.price as NSNumber),
+                        currency: currency,
+                        creditsAmount: creditsAmount
+                    )))
+                    accessBlockedReason = nil
+                } catch {
+                    AnalyticsManager.log(.creditsPurchaseFailedFromChatError(CreditsPurchaseFailedFromChatErrorEvent(
+                        productId: creditsProduct.id,
+                        errorReason: error.localizedDescription
+                    )))
+                    AppLogger.voice.error("Credits purchase failed: \(error)")
+                }
+            }
         }
     }
 }

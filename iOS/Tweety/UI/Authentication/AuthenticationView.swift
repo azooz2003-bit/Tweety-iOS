@@ -44,10 +44,14 @@ struct AuthenticationView: View {
             loginButton
         }
         .safeAreaPadding(.bottom, 40)
+        .onAppear {
+            AnalyticsManager.log(.loginScreenShown(LoginScreenShownEvent()))
+        }
     }
 
     var loginButton: some View {
         Button {
+            AnalyticsManager.log(.loginButtonPressed(LoginButtonPressedEvent()))
             Task {
                 do {
                     try await authViewModel.login()
