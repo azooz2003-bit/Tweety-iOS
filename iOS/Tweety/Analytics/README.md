@@ -1,28 +1,49 @@
 #  Analytics
 
-### Default Tracked (All)
-- `bundleID`* : Distinguishes production vs beta vs different app variants
-- `version`* : User-facing version (e.g., "1.2.0") - correlates bugs to releases and tracks feature adoption
-- `build`* : Internal build number - identifies exact binary when multiple builds exist for same version
+Tweety uses Firebase Analytics with a custom event system that automatically enriches all events with generic device/app properties.
+
+## Implementation
+
+Events are defined as `Encodable` structs in `Analytics/Events/`, wrapped by the `AppEvent` enum for type-safe logging:
+
+```swift
+AnalyticsManager.log(.voiceSessionBegan(
+    VoiceSessionBeganEvent(sessionLaunchTimeMs: 1250)
+))
+```
+
+All events are automatically enriched with `GenericProperties` before being sent to Firebase.
+
+### Generic Properties (Added to All Events)
+
+These properties are automatically added to every event:
+
 - `gitRevision`: Exact commit hash - enables perfect reproducibility for debugging
 - `localizedName`: App name shown to users - tracks A/B testing or region-specific branding
-- `sessionID`: Incremented launch counter - measures DAU/WAU, session frequency, crash rate per session, engagement trends
 - `debugBuild`: Filters out internal testing from production analytics - prevents skewed metrics
 - `isSimulator`: Excludes simulator sessions - simulators don't reflect real device performance or behavior
-- `deviceID` (UUID): Persistent anonymous identifier - tracks unique users, links events across sessions, identifies retention patterns
-- `deviceType`* : iPhone/iPad/Mac/Watch/TV - segments by major UX differences and interaction patterns
-- `deviceModel`* : Specific model (e.g., "iPhone 15 Pro") - analyzes performance gaps, plans features requiring specific hardware, identifies memory constraints, informs support decisions
-- `systemName`* : iOS/macOS/etc. - understands platform-specific issues for cross-platform apps
-- `systemVersion`* : iOS version (e.g., "17.2") - correlates OS-level bugs, determines API availability, tracks adoption for dropping old OS support
-- `physicalMemory`: RAM amount (e.g., "4GB") - correlates memory crashes, optimizes cache sizes, sets background processing limits
-- `cpuType`: ARM64/x86_64 - identifies architecture-specific bugs, especially for Mac Intel vs Apple Silicon
-- `physicalCores`: 2-core vs 8-core - profiles performance on lower-end devices
-- `country`* : Identifies growing markets, optimizes server locations, determines payment support, ensures legal compliance
-- `language`* : Measures translation quality, identifies non-English user churn, prioritizes localization updates
+- `physicalMemory`: RAM amount (bytes) - correlates memory crashes, optimizes cache sizes, sets background processing limits
+- `physicalCores`: Core count - profiles performance on lower-end devices
 - `screenSize`: Resolution (e.g., "390x844") - reveals layout bugs, optimizes for common sizes, validates tap target sizes
 - `screenScale`: @2x/@3x - optimizes image asset delivery and bandwidth usage
 
-*Already tracked by Firebase
+### Properties Already Tracked by Firebase*
+
+These are automatically collected by Firebase and do not need to be manually added:
+
+- `bundleID`: Distinguishes production vs beta vs different app variants
+- `version`: User-facing version (e.g., "1.2.0")
+- `build`: Internal build number
+- `deviceType`: iPhone/iPad/Mac/Watch/TV
+- `deviceModel`: Specific model (e.g., "iPhone 15 Pro")
+- `systemName`: iOS/macOS/etc.
+- `systemVersion`: iOS version (e.g., "17.2")
+- `country`: User's country
+- `language`: Device language
+- Firebase Installation ID (FID): Persistent anonymous identifier for tracking unique users
+- Session tracking: Automatic session start/end events
+
+*See "Automatically Logged User Attributes" below for full Firebase auto-tracking details
 
 ### Automatically Logged User Attributes (Google Analytics)
 
@@ -51,26 +72,35 @@ The following user dimensions are automatically collected by Google Analytics:
 | Subcontinent | Text | app, web | The subcontinent from which user activity originated |
 
 ### Events
-Below are the events Tweety tracks and the information gathered:
 
-- Login screen is shown
-- `Login with X` button is pressed
-- Voice Assistant screen is shown
-- Voice session start button is pressed
-- Session rejections (no subscription, no credits)
-- "Subscribe" button pressed from chat view error
-- "Subscribe" action from chat view error succeeds
-- "Subscribe" presses from settings
-- "Subscribe" action from settings succeeds
-- "Tweety Credits purchase" presses from settings
-- "Tweety Credits purchase" action from settings succeeds
-- Voice session stop button is pressed
-- Session stops abruptly (ran out of credits, disconnection, etc.)
-- Batch of tweets view is opened full screen
-- App moved to background / foreground / other lifecycle stage
-- Voice model events (tool calls, audio chunks, etc.) while obscuring potentially sensitive information like audio content, tool call params, etc.
-- User session events (input chunks sent, etc.) while obscuring potentially sensitive information like audio content, tool call params, etc.
-- On-screen presses of Confirm / Cancel buttons in tool action confirmation preview.
-- Session has officially began (fully connected to voice model and user can start speaking)
-    - Session launch time in milliseconds
+All events are defined in `Analytics/Events/` and logged via `AppEvent` enum.
+
+#### Login Events
+- `login_screen_shown`: Login screen is displayed
+- `login_button_pressed`: User taps "Login with X"
+
+#### Voice Session Events
+- `voice_assistant_screen_shown`: Voice assistant screen is displayed
+- `voice_session_start_button_pressed`: User taps session start button
+- `voice_session_began`: Session successfully connected (includes `session_launch_time_ms`)
+- `voice_session_stop_button_pressed`: User taps stop button
+- `voice_session_stopped_abruptly`: Session ended unexpectedly (includes `reason`)
+- `session_rejected`: Session start rejected (includes `reason`: no subscription, no credits, etc.)
+- `voice_model_event`: Voice model events (includes `event_type`, obscures sensitive data)
+- `user_session_event`: User session events (includes `event_type`, obscures sensitive data)
+
+#### Purchase Events
+- `subscribe_button_pressed_from_chat_error`: Subscribe button pressed from chat error
+- `subscribe_succeeded_from_chat_error`: Subscription purchase succeeded from chat error (includes `product_id`, `price`)
+- `subscribe_button_pressed_from_settings`: Subscribe button pressed from settings
+- `subscribe_succeeded_from_settings`: Subscription purchase succeeded from settings (includes `product_id`, `price`)
+- `credits_purchase_button_pressed_from_chat_error`: Credits purchase button pressed from chat error
+- `credits_purchase_succeeded_from_chat_error`: Credits purchase succeeded from chat error (includes `product_id`, `price`, `credits_amount`)
+- `credits_purchase_button_pressed_from_settings`: Credits purchase button pressed from settings
+- `credits_purchase_succeeded_from_settings`: Credits purchase succeeded from settings (includes `product_id`, `price`, `credits_amount`)
+
+#### UI Events
+- `batch_tweets_view_opened`: Batch tweets view opened full screen
+- `tool_confirmation_button_pressed`: Confirm/Cancel button pressed (includes `action`, `tool_name`)
+- `app_lifecycle_changed`: App lifecycle stage changed (includes `stage`)
 

@@ -61,6 +61,7 @@ struct ConfirmationActionPreferencesView: View {
         .navigationTitle("Actions - Confirmation Required")
         .navigationSubtitle("Actions that require confirmation before executing.")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollEdgeEffectStyle(.hard, for: .top)
 
     }
 
