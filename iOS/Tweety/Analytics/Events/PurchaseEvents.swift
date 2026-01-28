@@ -8,7 +8,7 @@
 import Foundation
 
 struct SubscribeButtonPressedFromChatErrorEvent: AnalyticsEvent {
-    static let name = "subscribe_button_pressed_from_chat_error"
+    static let name = "subscribe_btn_chat_error"
 }
 
 struct SubscribeSucceededFromChatErrorEvent: AnalyticsEvent {
@@ -25,7 +25,7 @@ struct SubscribeSucceededFromChatErrorEvent: AnalyticsEvent {
 }
 
 struct SubscribeButtonPressedFromSettingsEvent: AnalyticsEvent {
-    static let name = "subscribe_button_pressed_from_settings"
+    static let name = "subscribe_btn_settings"
 }
 
 struct SubscribeSucceededFromSettingsEvent: AnalyticsEvent {
@@ -42,11 +42,11 @@ struct SubscribeSucceededFromSettingsEvent: AnalyticsEvent {
 }
 
 struct CreditsPurchaseButtonPressedFromChatErrorEvent: AnalyticsEvent {
-    static let name = "credits_purchase_button_pressed_from_chat_error"
+    static let name = "credits_btn_chat_error"
 }
 
 struct CreditsPurchaseSucceededFromChatErrorEvent: AnalyticsEvent {
-    static let name = "credits_purchase_succeeded_from_chat_error"
+    static let name = "credits_success_chat_error"
     let productId: String
     let price: Double
     let currency: String
@@ -61,11 +61,11 @@ struct CreditsPurchaseSucceededFromChatErrorEvent: AnalyticsEvent {
 }
 
 struct CreditsPurchaseButtonPressedFromSettingsEvent: AnalyticsEvent {
-    static let name = "credits_purchase_button_pressed_from_settings"
+    static let name = "credits_btn_settings"
 }
 
 struct CreditsPurchaseSucceededFromSettingsEvent: AnalyticsEvent {
-    static let name = "credits_purchase_succeeded_from_settings"
+    static let name = "credits_success_settings"
     let productId: String
     let price: Double
     let currency: String
@@ -102,7 +102,7 @@ struct SubscribeFailedFromSettingsEvent: AnalyticsEvent {
 }
 
 struct CreditsPurchaseFailedFromChatErrorEvent: AnalyticsEvent {
-    static let name = "credits_purchase_failed_from_chat_error"
+    static let name = "credits_failed_chat_error"
     let productId: String
     let errorReason: String
 
@@ -113,7 +113,7 @@ struct CreditsPurchaseFailedFromChatErrorEvent: AnalyticsEvent {
 }
 
 struct CreditsPurchaseFailedFromSettingsEvent: AnalyticsEvent {
-    static let name = "credits_purchase_failed_from_settings"
+    static let name = "credits_failed_settings"
     let productId: String
     let errorReason: String
 

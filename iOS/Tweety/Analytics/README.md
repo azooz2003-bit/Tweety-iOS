@@ -90,18 +90,18 @@ All events are defined in `Analytics/Events/` and logged via `AppEvent` enum.
 - `user_session_event`: User session events (includes `event_type`, obscures sensitive data)
 
 #### Purchase Events
-- `subscribe_button_pressed_from_chat_error`: Subscribe button pressed from chat error
+- `subscribe_btn_chat_error`: Subscribe button pressed from chat error
 - `subscribe_succeeded_from_chat_error`: Subscription purchase succeeded from chat error (includes `product_id`, `price`, `currency`)
 - `subscribe_failed_from_chat_error`: Subscription purchase failed from chat error (includes `product_id`, `error_reason`)
-- `subscribe_button_pressed_from_settings`: Subscribe button pressed from settings
+- `subscribe_btn_settings`: Subscribe button pressed from settings
 - `subscribe_succeeded_from_settings`: Subscription purchase succeeded from settings (includes `product_id`, `price`, `currency`)
 - `subscribe_failed_from_settings`: Subscription purchase failed from settings (includes `product_id`, `error_reason`)
-- `credits_purchase_button_pressed_from_chat_error`: Credits purchase button pressed from chat error
-- `credits_purchase_succeeded_from_chat_error`: Credits purchase succeeded from chat error (includes `product_id`, `price`, `currency`, `credits_amount`)
-- `credits_purchase_failed_from_chat_error`: Credits purchase failed from chat error (includes `product_id`, `error_reason`)
-- `credits_purchase_button_pressed_from_settings`: Credits purchase button pressed from settings
-- `credits_purchase_succeeded_from_settings`: Credits purchase succeeded from settings (includes `product_id`, `price`, `currency`, `credits_amount`)
-- `credits_purchase_failed_from_settings`: Credits purchase failed from settings (includes `product_id`, `error_reason`)
+- `credits_btn_chat_error`: Credits purchase button pressed from chat error
+- `credits_success_chat_error`: Credits purchase succeeded from chat error (includes `product_id`, `price`, `currency`, `credits_amount`)
+- `credits_failed_chat_error`: Credits purchase failed from chat error (includes `product_id`, `error_reason`)
+- `credits_btn_settings`: Credits purchase button pressed from settings
+- `credits_success_settings`: Credits purchase succeeded from settings (includes `product_id`, `price`, `currency`, `credits_amount`)
+- `credits_failed_settings`: Credits purchase failed from settings (includes `product_id`, `error_reason`)
 
 #### UI Events
 - `batch_tweets_view_opened`: Batch tweets view opened full screen
