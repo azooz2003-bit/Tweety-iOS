@@ -2,57 +2,14 @@
 //  XAuthService.swift
 //  Tweety
 //
-//  Created by Matt Steele on 12/7/25.
+//  Created by Abdulaziz Albahar on 2/2/26.
 //
 
 import Foundation
-@preconcurrency import AuthenticationServices
 import CommonCrypto
+@preconcurrency import AuthenticationServices
 import Combine
 internal import os
-
-final class AuthPresentationProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        return ASPresentationAnchor()
-    }
-}
-
-enum AuthError: Error, Sendable {
-    // Configuration/Programming errors
-    case missingClientID
-    case invalidURL
-
-    // User-actionable errors
-    case loginCancelled
-    case loginFailed(String)
-    case networkError(String)
-}
-
-nonisolated
-struct AuthState: Sendable {
-    public let isAuthenticated: Bool
-    public let userId: String?
-    public let currentUserHandle: String?
-
-    public init(isAuthenticated: Bool, userId: String? = nil, currentUserHandle: String? = nil) {
-        self.isAuthenticated = isAuthenticated
-        self.userId = userId
-        self.currentUserHandle = currentUserHandle
-    }
-
-    static func loadFromKeychain() -> AuthState {
-        let keychain = KeychainHelper.shared
-        let token = keychain.getString(for: KeychainKeys.tokenKey)
-
-        if let token = token, !token.isEmpty {
-            let userId = keychain.getString(for: KeychainKeys.userIdKey)
-            let handle = keychain.getString(for: KeychainKeys.handleKey)
-            return AuthState(isAuthenticated: true, userId: userId, currentUserHandle: handle)
-        } else {
-            return AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
-        }
-    }
-}
 
 public actor XAuthService {
     private struct TwitterUserResponse: Codable {
@@ -62,6 +19,42 @@ public actor XAuthService {
     private struct TwitterUser: Codable {
         let id: String
         let username: String
+    }
+
+    struct AuthState: Sendable {
+        public let isAuthenticated: Bool
+        public let userId: String?
+        public let currentUserHandle: String?
+
+        public init(isAuthenticated: Bool, userId: String? = nil, currentUserHandle: String? = nil) {
+            self.isAuthenticated = isAuthenticated
+            self.userId = userId
+            self.currentUserHandle = currentUserHandle
+        }
+
+        static func loadFromKeychain() -> AuthState {
+            let keychain = KeychainHelper.shared
+            let token = keychain.getString(for: KeychainKeys.tokenKey)
+
+            if let token = token, !token.isEmpty {
+                let userId = keychain.getString(for: KeychainKeys.userIdKey)
+                let handle = keychain.getString(for: KeychainKeys.handleKey)
+                return AuthState(isAuthenticated: true, userId: userId, currentUserHandle: handle)
+            } else {
+                return AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
+            }
+        }
+    }
+
+    enum AuthError: Error, Sendable {
+        // Configuration/Programming errors
+        case missingClientID
+        case invalidURL
+
+        // User-actionable errors
+        case loginCancelled
+        case loginFailed(String)
+        case networkError(String)
     }
 
     private(set) var authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil) {

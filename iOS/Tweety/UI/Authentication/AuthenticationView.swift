@@ -55,9 +55,9 @@ struct AuthenticationView: View {
             Task {
                 do {
                     try await authViewModel.login()
-                } catch AuthError.loginCancelled {
+                } catch XAuthService.AuthError.loginCancelled {
                     // User cancelled - no error needed
-                } catch let error as AuthError {
+                } catch let error as XAuthService.AuthError {
                     errorMessage = error.localizedDescription
                     showError = true
                 } catch {

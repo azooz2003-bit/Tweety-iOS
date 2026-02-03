@@ -20,7 +20,7 @@ final class AuthViewModel {
     let accountService: TweetyAccountService
 
     init(appAttestService: AppAttestService) {
-        let currentState = AuthState.loadFromKeychain()
+        let currentState = XAuthService.AuthState.loadFromKeychain()
         self.isAuthenticated = currentState.isAuthenticated
         self.currentUserHandle = currentState.currentUserHandle
         self.authService = XAuthService(authPresentationProvider: .init(), appAttestService: appAttestService)
