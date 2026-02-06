@@ -29,7 +29,8 @@ struct VoiceAssistantView: View {
         storeManager: StoreKitManager,
         creditsService: RemoteCreditsService,
         usageTracker: UsageTracker,
-        imageCache: ImageCache
+        imageCache: ImageCache,
+        consentManager: AIConsentManager
     ) {
         self.imageCache = imageCache
         self.creditsService = creditsService
@@ -39,7 +40,8 @@ struct VoiceAssistantView: View {
             appAttestService: appAttestService,
             creditsService: creditsService,
             storeManager: storeManager,
-            usageTracker: usageTracker
+            usageTracker: usageTracker,
+            consentManager: consentManager
         ))
     }
 
@@ -122,6 +124,11 @@ struct VoiceAssistantView: View {
                 AnalyticsManager.log(.voiceAssistantScreenShown(VoiceAssistantScreenShownEvent()))
                 viewModel.checkPermissions()
                 hapticGenerator.prepare()
+
+                if !viewModel.consentManager.hasGivenConsent && !viewModel.consentManager.hasShownAlert {
+                    viewModel.showAIConsentAlert = true
+                    viewModel.consentManager.markAlertShown()
+                }
             }
             .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
                 animator.updateAudioLevel(CGFloat(newValue))
@@ -170,11 +177,13 @@ struct VoiceAssistantView: View {
                 storeManager: viewModel.storeManager,
                 creditsService: creditsService,
                 usageTracker: viewModel.usageTracker,
+                consentManager: viewModel.consentManager,
                 onLogout: {
                     await authViewModel.logout()
                 }
             )
         }
+        .aiConsentAlert(isPresented: $viewModel.showAIConsentAlert, consentManager: viewModel.consentManager)
     }
 
     @ViewBuilder
@@ -307,7 +316,8 @@ struct VoiceAssistantView: View {
         storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
-        imageCache: ImageCache()
+        imageCache: ImageCache(),
+        consentManager: AIConsentManager()
     )
 }
 

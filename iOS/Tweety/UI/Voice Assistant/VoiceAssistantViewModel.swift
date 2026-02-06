@@ -37,6 +37,7 @@ class VoiceAssistantViewModel {
     }
 
     var accessBlockedReason: AccessBlockedReason?
+    var showAIConsentAlert: Bool = false
 
     // MARK: Session
     /// For serializing sessions start and stops
@@ -59,6 +60,7 @@ class VoiceAssistantViewModel {
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
     let usageClock: VoiceUsageClock
+    let consentManager: AIConsentManager
 
     // MARK: Authentication
     var isXAuthenticated: Bool {
@@ -68,13 +70,14 @@ class VoiceAssistantViewModel {
         authViewModel.currentUserHandle
     }
 
-    init(authViewModel: AuthViewModel, appAttestService: AppAttestService, creditsService: RemoteCreditsService, storeManager: StoreKitManager, usageTracker: UsageTracker) {
+    init(authViewModel: AuthViewModel, appAttestService: AppAttestService, creditsService: RemoteCreditsService, storeManager: StoreKitManager, usageTracker: UsageTracker, consentManager: AIConsentManager) {
         self.authViewModel = authViewModel
         self.appAttestService = appAttestService
         self.creditsService = creditsService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.usageClock = VoiceUsageClock(usageTracker: usageTracker, authService: authViewModel.authService)
+        self.consentManager = consentManager
 
         let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService) ?? "" // nil coalesce below should handle ""
         selectedServiceType = VoiceServiceType(rawValue: serviceStr) ?? .openai
@@ -249,6 +252,11 @@ class VoiceAssistantViewModel {
     // MARK: - Session
 
     func startSession() {
+        guard consentManager.hasGivenConsent else {
+            showAIConsentAlert = true
+            return
+        }
+
         connectionStartTime = Date()
         isSessionActivated = true
         sessionStartStopTask?.cancel()

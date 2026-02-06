@@ -71,6 +71,7 @@ struct PurchaseProductRow: View {
         storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
+        consentManager: .init(),
         onLogout: {}
     )
 }

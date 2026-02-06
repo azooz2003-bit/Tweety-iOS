@@ -19,6 +19,7 @@ struct TweetyApp: App {
     @State var storeManager: StoreKitManager
     @State var usageTracker: UsageTracker
     @State var imageCache = ImageCache()
+    @State var consentManager = AIConsentManager()
 
     init() {
         self.appAttestService = AppAttestService()
@@ -37,7 +38,8 @@ struct TweetyApp: App {
                 storeManager: storeManager,
                 creditsService: creditsService,
                 usageTracker: usageTracker,
-                imageCache: imageCache
+                imageCache: imageCache,
+                consentManager: consentManager
             )
             .task {
                 await initializeStore()

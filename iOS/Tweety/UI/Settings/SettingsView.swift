@@ -11,16 +11,19 @@ struct SettingsView: View {
     @State private var storeVM: StoreViewModel
     @State private var showDeleteAccountAlert = false
     @State private var showSubscriptionSheet = false
+    @State private var showConsentAlert = false
 
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
     let authViewModel: AuthViewModel
+    let consentManager: AIConsentManager
     let onLogout: () async -> Void
 
-    init(authViewModel: AuthViewModel, storeManager: StoreKitManager, creditsService: RemoteCreditsService, usageTracker: UsageTracker, onLogout: @escaping () async -> Void) {
+    init(authViewModel: AuthViewModel, storeManager: StoreKitManager, creditsService: RemoteCreditsService, usageTracker: UsageTracker, consentManager: AIConsentManager, onLogout: @escaping () async -> Void) {
         self.authViewModel = authViewModel
         self.storeManager = storeManager
         self.usageTracker = usageTracker
+        self.consentManager = consentManager
         self.onLogout = onLogout
         self._storeVM = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService, authService: authViewModel.authService))
     }
@@ -130,6 +133,53 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("AI Data Sharing")
+                                .font(.subheadline)
+                            Spacer()
+                            if consentManager.hasGivenConsent {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                Text("Consented")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.red)
+                                Text("Not Consented")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if let consentDate = consentManager.consentDate {
+                            Text("Consented on \(consentDate.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if consentManager.hasGivenConsent {
+                        Button(role: .destructive) {
+                            consentManager.revokeConsent()
+                        } label: {
+                            Text("Revoke AI Data Sharing Consent")
+                        }
+                    } else {
+                        Button {
+                            showConsentAlert = true
+                        } label: {
+                            Text("Provide AI Data Sharing Consent")
+                        }
+                    }
+                } header: {
+                    Text("Privacy")
+                } footer: {
+                    Text("Tweety shares voice audio, X account information, and usage data with third-party AI services (OpenAI or xAI) to power voice interactions.")
+                }
+
                 // MARK: Legal
                 Section("Legal") {
                     Link(destination: URL(string: "https://tweetyvoice.app/privacypolicy/")!) {
@@ -224,6 +274,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .aiConsentAlert(isPresented: $showConsentAlert, consentManager: consentManager)
             .overlay {
                 if storeVM.isPurchasing || authViewModel.isDeletingAccount {
                     ZStack {
@@ -277,6 +328,7 @@ struct SettingsView: View {
         storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
+        consentManager: AIConsentManager(),
         onLogout: {}
     )
 }

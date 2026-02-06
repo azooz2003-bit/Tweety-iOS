@@ -14,6 +14,7 @@ struct RootView: View {
     let creditsService: RemoteCreditsService
     let usageTracker: UsageTracker
     let imageCache: ImageCache
+    let consentManager: AIConsentManager
 
     var body: some View {
         Group {
@@ -24,7 +25,8 @@ struct RootView: View {
                     storeManager: storeManager,
                     creditsService: creditsService,
                     usageTracker: usageTracker,
-                    imageCache: imageCache
+                    imageCache: imageCache,
+                    consentManager: consentManager
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
@@ -54,7 +56,8 @@ struct RootView: View {
         storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,
         usageTracker: UsageTracker(creditsService: creditsService),
-        imageCache: ImageCache()
+        imageCache: ImageCache(),
+        consentManager: AIConsentManager()
     )
     .task {
         await authViewModel.startObserving()
