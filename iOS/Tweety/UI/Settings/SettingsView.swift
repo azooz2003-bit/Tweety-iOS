@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var storeVM: StoreViewModel
     @State private var showDeleteAccountAlert = false
+    @State private var showSubscriptionSheet = false
 
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
@@ -40,21 +41,8 @@ struct SettingsView: View {
                                 product: product,
                                 isActive: storeVM.activeSubscriptions.contains(where: { $0.id == product.id }),
                                 onPurchase: {
+                                    showSubscriptionSheet = true
                                     AnalyticsManager.log(.subscribeButtonPressedFromSettings(SubscribeButtonPressedFromSettingsEvent()))
-                                    do {
-                                        try await storeVM.purchase(product)
-                                        let currency = product.priceFormatStyle.currencyCode
-                                        AnalyticsManager.log(.subscribeSucceededFromSettings(SubscribeSucceededFromSettingsEvent(
-                                            productId: product.id,
-                                            price: Double(truncating: product.price as NSNumber),
-                                            currency: currency
-                                        )))
-                                    } catch {
-                                        AnalyticsManager.log(.subscribeFailedFromSettings(SubscribeFailedFromSettingsEvent(
-                                            productId: product.id,
-                                            errorReason: error.localizedDescription
-                                        )))
-                                    }
                                 }
                             )
                         }
@@ -94,6 +82,17 @@ struct SettingsView: View {
 
                 // MARK: Account Actions
                 Section("Account") {
+                    if let userHandle = authViewModel.currentUserHandle, let userId = authViewModel.currentUserId {
+                        HStack {
+                            Text("@\(userHandle)")
+                            Spacer()
+                            Text(userId)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
                     Button {
                         Task {
                             await storeVM.restorePurchases()
@@ -128,6 +127,29 @@ struct SettingsView: View {
                 Section("Preferences") {
                     NavigationLink("Actions - Confirmation Required") {
                         ConfirmationActionPreferencesView()
+                    }
+                }
+
+                // MARK: Legal
+                Section("Legal") {
+                    Link(destination: URL(string: "https://tweetyvoice.app/privacypolicy/")!) {
+                        HStack {
+                            Text("Privacy Policy")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.forward")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Link(destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) {
+                        HStack {
+                            Text("Terms of Use")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "arrow.up.forward")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -221,6 +243,24 @@ struct SettingsView: View {
 
                 await storeVM.loadProductsAndBalance()
             }
+            .sheet(isPresented: $showSubscriptionSheet) {
+                SubscriptionStoreView(productIDs: storeVM.subscriptionProducts.map { $0.id })
+                    .onInAppPurchaseCompletion { product, result in
+                        if case .success(.success(_)) = result {
+                            let currency = product.priceFormatStyle.currencyCode
+                            AnalyticsManager.log(.subscribeSucceededFromSettings(SubscribeSucceededFromSettingsEvent(
+                                productId: product.id,
+                                price: Double(truncating: product.price as NSNumber),
+                                currency: currency
+                            )))
+                        } else if case .failure(let error) = result {
+                            AnalyticsManager.log(.subscribeFailedFromSettings(SubscribeFailedFromSettingsEvent(
+                                productId: product.id,
+                                errorReason: error.localizedDescription
+                            )))
+                        }
+                    }
+            }
         }
     }
 }
@@ -229,7 +269,10 @@ struct SettingsView: View {
     let appAttestService = AppAttestService()
     let creditsService = RemoteCreditsService(appAttestService: appAttestService)
     let authViewModel = AuthViewModel(appAttestService: .init())
-    SettingsView(
+    authViewModel.currentUserHandle = "@a_albahar"
+    authViewModel.currentUserId = "test"
+
+    return SettingsView(
         authViewModel: authViewModel,
         storeManager: StoreKitManager(creditsService: creditsService, authService: authViewModel.authService),
         creditsService: creditsService,

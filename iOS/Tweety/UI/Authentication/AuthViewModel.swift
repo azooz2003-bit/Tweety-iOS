@@ -13,6 +13,7 @@ import OSLog
 final class AuthViewModel {
     var isAuthenticated = false
     var currentUserHandle: String?
+    var currentUserId: String?
     var isDeletingAccount = false
     var error: Error?
 
@@ -33,6 +34,7 @@ final class AuthViewModel {
         for await state in authService.authStateStream {
             self.isAuthenticated = state.isAuthenticated
             self.currentUserHandle = state.currentUserHandle
+            self.currentUserId = state.userId
         }
     }
 
