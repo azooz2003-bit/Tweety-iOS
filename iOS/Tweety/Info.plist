@@ -26,7 +26,7 @@
 	<key>DEVELOPMENT_TEAM</key>
 	<string>$(DEVELOPMENT_TEAM)</string>
 	<key>GitRevision</key>
-	<string>ebc5afb</string>
+	<string>f6bb13d</string>
 	<key>TEAM_ID</key>
 	<string>$(TEAM_ID)</string>
 	<key>UIBackgroundModes</key>

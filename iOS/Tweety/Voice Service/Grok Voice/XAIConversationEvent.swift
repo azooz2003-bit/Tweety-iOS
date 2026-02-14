@@ -56,6 +56,8 @@ struct XAIConversationEvent: Codable {
     struct SessionConfig: Codable {
         enum Voice: String, Codable {
             case Ara, Rex, Sal, Eve, Una, Leo
+            // Grok also returns voices with "human_" prefix
+            case human_Ara, human_Rex, human_Sal, human_Eve, human_Una, human_Leo
         }
 
         let instructions: String?

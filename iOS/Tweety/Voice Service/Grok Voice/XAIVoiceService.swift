@@ -123,10 +123,11 @@ class XAIVoiceService: NSObject, VoiceService {
     // MARK: - Session Configuration
 
     func configureSession(config: VoiceSessionConfig, tools: [VoiceToolDefinition]?) throws {
-        AppLogger.voice.info("Configuring voice session")
+        AppLogger.voice.info("🔧 Grok: Configuring voice session")
 
         // Translate abstracted tool definitions to xAI format
         let xaiTools = tools?.map { translateToolDefinition($0) }
+        AppLogger.voice.info("🔧 Grok: Translated \(xaiTools?.count ?? 0) tools")
 
         // xAI format: voice and turnDetection are at session level
         let sessionConfig = XAIConversationEvent(
@@ -171,7 +172,9 @@ class XAIVoiceService: NSObject, VoiceService {
             conversation: nil
         )
 
+        AppLogger.voice.info("🔧 Grok: Sending session.update event")
         try sendMessage(sessionConfig)
+        AppLogger.voice.info("🔧 Grok: session.update sent successfully, waiting for response...")
     }
 
     // MARK: - Audio Streaming
@@ -350,12 +353,15 @@ class XAIVoiceService: NSObject, VoiceService {
 
     private func handleTextMessage(_ text: String) {
         guard let message = try? JSONDecoder().decode(XAIConversationEvent.self, from: Data(text.utf8)) else {
-            #if DEBUG
-            AppLogger.voice.warning("Received unanticipated message format")
-            AppLogger.logSensitive(AppLogger.voice, level: .debug, "Message content: \(text)")
-            #endif
+            AppLogger.voice.error("❌ Grok: Failed to decode message")
+            AppLogger.logSensitive(AppLogger.voice, level: .error, "Full message content: \(text)")
             return
         }
+
+        AppLogger.voice.info("✅ Grok: Message decoded successfully")
+
+        AppLogger.voice.info("📋 Grok: Message type = \(message.type.rawValue)")
+
 
         // Emit abstracted event
         onEvent?(translateEvent(message))
@@ -369,7 +375,7 @@ class XAIVoiceService: NSObject, VoiceService {
             AppLogger.voice.info("Conversation created")
 
         case .sessionUpdated:
-            AppLogger.voice.info("Session configured successfully")
+            AppLogger.voice.info("🎉 Session configured successfully - calling onConnected()")
             onConnected?()
 
         case .responseFunctionCallArgumentsDone:
@@ -385,6 +391,7 @@ class XAIVoiceService: NSObject, VoiceService {
             }
 
         default:
+            AppLogger.voice.warning("⚠️ Grok: Skipping message with unanticipated type")
             break
         }
     }
