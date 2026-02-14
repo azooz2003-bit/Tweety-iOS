@@ -478,10 +478,10 @@ actor XAPIOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
-        case .getRepostsOfMe:
-            path = "/2/users/reposts_of_me"
-            method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true))
+//        case .getRepostsOfMe:
+//            path = "/2/users/reposts_of_me"
+//            method = .get
+//            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true))
 
         // MARK: - Lists
         case .createList:
@@ -894,7 +894,7 @@ actor XAPIOrchestrator {
         // Read operations - Posts
         case .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
              .getUserLikedTweets, .getUserTweets, .getUserMentions,
-             .getHomeTimeline, .getRepostsOfMe:
+             .getHomeTimeline/*, .getRepostsOfMe*/:
             if let data = json["data"] as? [[String: Any]] {
                 operation = .postRead
                 count = data.count

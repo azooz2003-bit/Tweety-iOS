@@ -56,7 +56,7 @@ extension XAPIEndpoint {
         case .retweet: return "Retweet"
         case .unretweet: return "Undo Retweet"
         case .getRetweets: return "Get Retweets"
-        case .getRepostsOfMe: return "Get My Reposts"
+//        case .getRepostsOfMe: return "Get My Reposts"
 
         // MARK: - Lists
         case .createList: return "Create List"

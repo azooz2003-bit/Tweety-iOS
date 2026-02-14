@@ -61,7 +61,7 @@ enum XAPIEndpoint: String, CaseIterable, Identifiable {
     case retweet = "retweet"
     case unretweet = "unretweet"
     case getRetweets = "get_retweets"
-    case getRepostsOfMe = "get_reposts_of_me"
+//    case getRepostsOfMe = "get_reposts_of_me"
 
     // MARK: - Lists
     case createList = "create_list"
@@ -170,7 +170,7 @@ enum XAPIEndpoint: String, CaseIterable, Identifiable {
         case .retweet: return "Retweet a tweet"
         case .unretweet: return "Remove a retweet"
         case .getRetweets: return "Get retweet posts of a specific tweet"
-        case .getRepostsOfMe: return "Get reposts of the authenticated user's tweets"
+//        case .getRepostsOfMe: return "Get reposts of the authenticated user's tweets"
 
         // Lists
         case .createList: return "Create a new list"
@@ -604,13 +604,13 @@ enum XAPIEndpoint: String, CaseIterable, Identifiable {
                 required: ["id"]
             )
 
-        case .getRepostsOfMe:
-            return .object(
-                properties: [
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Token to retrieve the next page of results. Use the value from 'meta.next_token' in the previous response."),
-                ]
-            )
+//        case .getRepostsOfMe:
+//            return .object(
+//                properties: [
+//                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
+//                    "pagination_token": .string(description: "Token to retrieve the next page of results. Use the value from 'meta.next_token' in the previous response."),
+//                ]
+//            )
 
         // MARK: - Lists
         case .createList:

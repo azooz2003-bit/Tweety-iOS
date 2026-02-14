@@ -627,8 +627,15 @@ class VoiceAssistantViewModel {
 
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
         let tweetTools: Set<XAPIEndpoint> = [
-            .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
-            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .getRepostsOfMe
+            .searchRecentTweets,
+            .searchAllTweets,
+            .getTweets,
+            .getTweet,
+            .getUserLikedTweets,
+            .getUserTweets,
+            .getUserMentions,
+            .getHomeTimeline,
+//            .getRepostsOfMe
         ]
 
         guard let data = response.data(using: .utf8),
